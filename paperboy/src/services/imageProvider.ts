@@ -1,6 +1,26 @@
 // Image Generation Provider - Supports multiple backends
-import { ImageGenerationOptions, ImageGenerationResult } from '../types';
-import { AIProviderError } from './aiProvider';
+import type { GenerationOptions } from '../types';
+
+export interface ImageGenerationOptions extends GenerationOptions {
+  aspectRatio?: '1:1' | '4:3' | '16:9' | '9:16';
+}
+
+export interface ImageGenerationResult {
+  base64: string;
+  mimeType: string;
+}
+
+export class ImageProviderError extends Error {
+  isRetryable: boolean;
+  status?: number;
+
+  constructor(message: string, isRetryable = false, status?: number) {
+    super(message);
+    this.name = 'ImageProviderError';
+    this.isRetryable = isRetryable;
+    this.status = status;
+  }
+}
 
 // Base interface for image providers
 export interface ImageProvider {
@@ -21,54 +41,83 @@ export class FalImageProvider implements ImageProvider {
 
   async generateImage(prompt: string, options?: ImageGenerationOptions): Promise<ImageGenerationResult> {
     if (!this.apiKey) {
-      throw new AIProviderError('fal.ai API key is required', 'MISSING_API_KEY');
+      throw new ImageProviderError('fal.ai API key is required', false);
     }
 
-    const url = 'https://queue.fal.run/fal-ai/flux';
-
-    const payload: Record<string, unknown> = {
-      prompt,
-      image_size: options?.size || 'square_1_1',
-      num_images: 1
+    // Map aspect ratio to fal.ai image size
+    const sizeMap: Record<string, string> = {
+      '1:1': 'square_1_1',
+      '4:3': 'landscape_4_3',
+      '16:9': 'landscape_16_9',
+      '9:16': 'portrait_9_16'
     };
+    const imageSize = options?.aspectRatio ? sizeMap[options.aspectRatio] || 'square_1_1' : 'square_1_1';
 
-    // Add seed if provided for reproducibility
-    if (options?.seed) {
-      payload.seed = options.seed;
-    }
-
-    const response = await fetch(url, {
+    const response = await fetch('https://queue.fal.run/fal-ai/flux-pro', {
       method: 'POST',
       headers: {
         'Authorization': `Key ${this.apiKey}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        prompt,
+        image_size: imageSize,
+        num_images: 1
+      })
     });
 
     if (!response.ok) {
       const errorBody = await response.text();
-      throw new AIProviderError(
+      throw new ImageProviderError(
         `fal.ai API error: ${response.status} - ${errorBody}`,
-        undefined,
+        response.status === 429 || response.status >= 500,
         response.status
       );
     }
 
-    const data = await response.json() as { images?: Array<{ url: string }> };
+    // fal.ai returns a request ID that we need to poll
+    const data = await response.json() as { request_id: string };
     
-    if (!data.images || data.images.length === 0) {
-      throw new AIProviderError('No image generated', 'NO_IMAGE_GENERATED');
+    if (!data.request_id) {
+      throw new ImageProviderError('No request ID returned', false);
     }
 
-    // Fetch the actual image and convert to base64
-    const imageUrl = data.images[0].url;
-    const imageResponse = await fetch(imageUrl);
-    const imageBuffer = await imageResponse.arrayBuffer();
-    const base64 = Buffer.from(imageBuffer).toString('base64');
-    const mimeType = 'image/png';
+    // Poll for the result
+    const result = await this.pollForResult(data.request_id);
+    
+    return result;
+  }
 
-    return { base64, mimeType };
+  private async pollForResult(requestId: string, maxAttempts = 30): Promise<ImageGenerationResult> {
+    const pollUrl = `https://queue.fal.run/fal-ai/flux-pro/requests/${requestId}`;
+    
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const response = await fetch(pollUrl, {
+        headers: {
+          'Authorization': `Key ${this.apiKey}`
+        }
+      });
+      
+      const data = await response.json() as { status: string; images?: Array<{ url: string }> };
+      
+      if (data.status === 'completed' && data.images && data.images.length > 0) {
+        // Fetch the actual image and convert to base64
+        const imageUrl = data.images[0].url;
+        const imageResponse = await fetch(imageUrl);
+        const imageBuffer = await imageResponse.arrayBuffer();
+        const base64 = Buffer.from(imageBuffer).toString('base64');
+        
+        return { base64, mimeType: 'image/png' };
+      }
+      
+      if (data.status === 'failed') {
+        throw new ImageProviderError('Image generation failed', false);
+      }
+    }
+    
+    throw new ImageProviderError('Timeout waiting for image', true);
   }
 }
 
