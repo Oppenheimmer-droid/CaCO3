@@ -36,3 +36,5 @@ services:
         value: fal
       - key: FAL_API_KEY
         sync: false
+      - key: FAL_MODEL
+        value: fal-ai/flux-pro

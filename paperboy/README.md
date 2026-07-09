@@ -10,7 +10,23 @@ Generador de cómics con IA que analiza texto, genera guiones de 8 viñetas y pr
 
 Paperboy soporta múltiples proveedores de IA que puedes configurar mediante variables de entorno:
 
-### Ollama (recomendado)
+### FAL.AI + Flux (recomendado para imágenes)
+
+Usa FAL.AI con el modelo Flux para generación de imágenes de alta calidad. Es la opción recomendada para generar cómics con imágenes realistas y detalladas.
+
+```bash
+# Configuración
+VITE_IMAGE_PROVIDER=fal
+VITE_FAL_API_KEY=tu_api_key_de_fal
+VITE_FAL_MODEL=fal-ai/flux-pro
+```
+
+Modelos disponibles en FAL:
+- `fal-ai/flux-pro` - Mejor calidad, más lento
+- `fal-ai/flux-schnell` - Más rápido, menor calidad
+- `fal-ai/flux-dev` - Desarrollo
+
+### Ollama (recomendado para texto)
 
 Usa modelos locales de Ollama para generación de texto y, si tu modelo lo soporta, visión. Es la opción recomendada para mantener la app simple, privada y sin depender de claves expuestas en el navegador.
 
@@ -41,7 +57,7 @@ Modelos utilizados:
 Crea un archivo `.env.local` en la raíz del proyecto:
 
 ```bash
-# Proveedor: 'gemini' o 'ollama'
+# Proveedor de IA de texto: 'gemini' o 'ollama'
 VITE_AI_PROVIDER=ollama
 
 # Para Gemini (opcional):
@@ -54,6 +70,11 @@ VITE_OLLAMA_API_KEY=
 
 # Backend opcional para mantener las claves fuera del navegador
 VITE_BACKEND_URL=http://localhost:4000
+
+# Para FAL.AI (generación de imágenes con Flux):
+VITE_IMAGE_PROVIDER=fal
+VITE_FAL_API_KEY=tu_api_key_de_fal
+VITE_FAL_MODEL=fal-ai/flux-pro
 ```
 
 ### Variables de build (con prefijo VITE_)
@@ -151,41 +172,52 @@ El proyecto está configurado para desplegarse en [Render](https://render.com/) 
    |----------|-------|-------------|
    | `NODE_ENV` | `production` | Entorno de producción |
    | `PORT` | `10000` | Puerto del servidor |
-   | `GEMINI_API_KEY` | Tu clave API | Clave de Google Gemini (requerida) |
-   | `AI_PROVIDER` | `gemini` | Proveedor de IA |
-   | `OLLAMA_BASE_URL` | `http://localhost:11434` | URL de Ollama (opcional) |
-   | `OLLAMA_MODEL` | `llama3.2` | Modelo Ollama (opcional) |
+   | `AI_PROVIDER` | `ollama` | Proveedor de IA de texto |
+   | `OLLAMA_BASE_URL` | `https://ollama.com/api` | URL de Ollama Cloud |
+   | `OLLAMA_MODEL` | `llama3.2` | Modelo Ollama |
+   | `OLLAMA_API_KEY` | Tu clave | Clave de Ollama (opcional) |
+   | `IMAGE_PROVIDER` | `fal` | Proveedor de imágenes |
+   | `FAL_API_KEY` | Tu clave | **Clave de FAL.AI** (requerida) |
+   | `FAL_MODEL` | `fal-ai/flux-pro` | Modelo Flux (recomendado) |
 
-   **Nota:** La variable `GEMINI_API_KEY` debe configurarse como `sync: false` para proteger la clave.
+   **Nota:** Las variables `OLLAMA_API_KEY` y `FAL_API_KEY` deben configurarse como `sync: false` para proteger las claves.
 
 3. **Despliegue automático:**
    - Render detectará automáticamente el archivo `render.yaml`
    - Hará build del frontend y servidor
    - Desplegará la aplicación
 
-### Obtención de la clave API de Gemini:
+### Obtención de claves API:
 
-1. Ve a [Google AI Studio](https://makersuite.google.com/app/apikey)
+**FAL.AI (generación de imágenes):**
+1. Ve a [fal.ai/dashboard/keys](https://fal.ai/dashboard/keys)
 2. Crea una nueva API key
-3. Configúrala en las variables de entorno de Render
+3. Configúrala en las variables de entorno de Render como `FAL_API_KEY`
+
+**Ollama (generación de texto):**
+1. Ve a [ollama.com](https://ollama.com)
+2. Regístrate y obtén tu API key
+3. Configúrala en las variables de entorno de Render como `OLLAMA_API_KEY`
 
 ### Arquitectura del despliegue:
 
 ```
-┌─────────────────────────────────────────────┐
-│              Render Service                  │
-│  ┌─────────────────────────────────────┐    │
-│  │         Express Server              │    │
-│  │  ┌───────────┐  ┌───────────────┐  │    │
-│  │  │  Static   │  │    API        │  │    │
-│  │  │  Files    │  │   Endpoints   │  │    │
-│  │  │  (dist/)  │  │  /api/*       │  │    │
-│  │  └───────────┘  └───────────────┘  │    │
-│  └─────────────────────────────────────┘    │
-│                    │                        │
-│                    ▼                        │
-│         Google Gemini API                    │
-└─────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│                    Render Service                    │
+│  ┌─────────────────────────────────────────────┐    │
+│  │              Express Server                 │    │
+│  │  ┌───────────┐  ┌───────────────────┐      │    │
+│  │  │  Static   │  │    API            │      │    │
+│  │  │  Files    │  │   Endpoints       │      │    │
+│  │  │  (dist/)  │  │  /api/*           │      │    │
+│  │  └───────────┘  └───────────────────┘      │    │
+│  └─────────────────────────────────────────────┘    │
+│                    │                               │
+│         ┌──────────┴──────────┐                     │
+│         ▼                     ▼                     │
+│   Ollama Cloud          FAL.AI (Flux)                │
+│   (Texto)              (Imágenes)                   │
+└─────────────────────────────────────────────────────┘
 ```
 
 ### Endpoints disponibles:
