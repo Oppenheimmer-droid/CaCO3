@@ -578,10 +578,12 @@ export function getAIProvider(): AIProvider {
     backendUrl: ENV_BACKEND_URL
   };
 
-  if (providerConfig.backendUrl) {
-    cachedProvider = new BackendProvider(providerConfig.backendUrl);
-    console.info(`Using backend provider: ${providerConfig.backendUrl}`);
-  } else if (providerConfig.provider === 'ollama') {
+  // Priority: Ollama/Gemini provider > BackendProvider
+  // Only use BackendProvider if explicitly configured AND not localhost
+  const isLocalhostBackend = providerConfig.backendUrl?.includes('localhost') || 
+                             providerConfig.backendUrl?.includes('127.0.0.1');
+
+  if (providerConfig.provider === 'ollama') {
     // Check if it's Ollama Cloud (ollama.com)
     if (providerConfig.ollamaBaseUrl.includes('ollama.com')) {
       cachedProvider = new OllamaCloudProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel, providerConfig.ollamaApiKey);
@@ -590,11 +592,21 @@ export function getAIProvider(): AIProvider {
       cachedProvider = new OllamaProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel, providerConfig.ollamaApiKey);
       console.info(`Using Ollama provider: ${providerConfig.ollamaBaseUrl} with model ${providerConfig.ollamaModel}`);
     }
+  } else if (providerConfig.provider === 'gemini' || !isLocalhostBackend) {
+    // Use Gemini or Backend (if not localhost)
+    if (providerConfig.backendUrl && !isLocalhostBackend) {
+      cachedProvider = new BackendProvider(providerConfig.backendUrl);
+      console.info(`Using backend provider: ${providerConfig.backendUrl}`);
+    } else {
+      const apiKey = providerConfig.geminiApiKey || '';
+      cachedProvider = new GeminiProvider(apiKey);
+      console.info('Using Gemini provider');
+    }
   } else {
-    // Default to Gemini
+    // Fallback to Gemini if localhost backend
     const apiKey = providerConfig.geminiApiKey || '';
     cachedProvider = new GeminiProvider(apiKey);
-    console.info('Using Gemini provider');
+    console.info('Using Gemini provider (fallback from localhost backend)');
   }
 
   return cachedProvider;
@@ -606,10 +618,11 @@ export async function initializeAIProvider(): Promise<AIProvider> {
     return cachedProvider;
   }
 
-  if (config.backendUrl) {
-    cachedProvider = new BackendProvider(config.backendUrl);
-    console.info(`Using backend provider from runtime config: ${config.backendUrl}`);
-  } else if (config.provider === 'ollama') {
+  // Priority: Ollama/Gemini provider > BackendProvider
+  const isLocalhostBackend = config.backendUrl?.includes('localhost') || 
+                             config.backendUrl?.includes('127.0.0.1');
+
+  if (config.provider === 'ollama') {
     // Check if it's Ollama Cloud (ollama.com)
     const ollamaUrl = config.ollamaBaseUrl || 'http://localhost:11434';
     if (ollamaUrl.includes('ollama.com')) {
@@ -619,10 +632,18 @@ export async function initializeAIProvider(): Promise<AIProvider> {
       cachedProvider = new OllamaProvider(ollamaUrl, config.ollamaModel || 'llama3.2', config.ollamaApiKey);
       console.info(`Using Ollama provider from runtime config: ${ollamaUrl} with model ${config.ollamaModel}`);
     }
+  } else if (config.provider === 'gemini' || !isLocalhostBackend) {
+    if (config.backendUrl && !isLocalhostBackend) {
+      cachedProvider = new BackendProvider(config.backendUrl);
+      console.info(`Using backend provider from runtime config: ${config.backendUrl}`);
+    } else {
+      cachedProvider = new GeminiProvider(config.geminiApiKey || '');
+      console.info('Using Gemini provider from runtime config');
+    }
   } else {
-    // Default to Gemini
+    // Fallback to Gemini
     cachedProvider = new GeminiProvider(config.geminiApiKey || '');
-    console.info('Using Gemini provider from runtime config');
+    console.info('Using Gemini provider (fallback from localhost backend)');
   }
 
   return cachedProvider;
