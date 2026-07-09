@@ -4,11 +4,14 @@ import { loadRuntimeAIConfig, mergeAIConfig, RuntimeAIConfig } from './aiConfig'
 import { callBackendAI } from './aiBackend';
 
 // Environment configuration
-const ENV_AI_PROVIDER = (import.meta.env.VITE_AI_PROVIDER || import.meta.env.AI_PROVIDER || 'ollama') as 'gemini' | 'ollama';
+const ENV_AI_PROVIDER = (import.meta.env.VITE_AI_PROVIDER || import.meta.env.AI_PROVIDER || 'groq') as 'gemini' | 'ollama' | 'groq';
 const ENV_GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY || '';
 const ENV_OLLAMA_BASE_URL = (import.meta.env.VITE_OLLAMA_BASE_URL || import.meta.env.OLLAMA_BASE_URL || 'https://ollama.com/api').replace(/\/$/, '');
 const ENV_OLLAMA_MODEL = import.meta.env.VITE_OLLAMA_MODEL || import.meta.env.OLLAMA_MODEL || 'llama3';
 const ENV_OLLAMA_API_KEY = import.meta.env.VITE_OLLAMA_API_KEY || import.meta.env.OLLAMA_API_KEY || '';
+// Groq configuration
+const ENV_GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || import.meta.env.GROQ_API_KEY || '';
+const ENV_GROQ_MODEL = import.meta.env.VITE_GROQ_MODEL || import.meta.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 const ENV_BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || import.meta.env.BACKEND_URL || 'http://localhost:4000').replace(/\/$/, '');
 // Image generation
 const ENV_IMAGE_PROVIDER = import.meta.env.VITE_IMAGE_PROVIDER || import.meta.env.IMAGE_PROVIDER || 'fal';
@@ -30,6 +33,8 @@ async function resolveAIConfig(): Promise<RuntimeAIConfig> {
       ollamaBaseUrl: ENV_OLLAMA_BASE_URL,
       ollamaModel: ENV_OLLAMA_MODEL,
       ollamaApiKey: ENV_OLLAMA_API_KEY,
+      groqApiKey: ENV_GROQ_API_KEY,
+      groqModel: ENV_GROQ_MODEL,
       backendUrl: ENV_BACKEND_URL
     },
     loaded
@@ -526,6 +531,92 @@ class OllamaProvider implements AIProvider {
   }
 }
 
+// ==================== GROQ PROVIDER ====================
+
+class GroqProvider implements AIProvider {
+  readonly name = 'groq';
+  readonly supportsImageGeneration = false;
+  readonly supportsTranscription = false;
+
+  private apiKey: string;
+  private model: string;
+  private baseUrl = 'https://api.groq.com/openai/v1';
+
+  constructor(apiKey: string, model: string) {
+    this.apiKey = apiKey;
+    this.model = model;
+  }
+
+  async generateText(prompt: string, options?: TextGenerationOptions): Promise<TextGenerationResult> {
+    if (!this.apiKey) {
+      throw new AIProviderError('GROQ_API_KEY is required for GroqProvider', false, 401);
+    }
+
+    const url = `${this.baseUrl}/chat/completions`;
+    
+    const body: Record<string, unknown> = {
+      model: options?.model || this.model,
+      messages: [{ role: 'user', content: prompt }],
+      stream: false
+    };
+
+    if (options?.responseMimeType === 'application/json') {
+      body.response_format = { type: 'json_object' };
+    }
+
+    return withRetry(async () => {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => '');
+        throw new AIProviderError(
+          `Groq API error: ${response.status} ${response.statusText} - ${errorBody}`,
+          undefined,
+          response.status,
+          response.status === 429 || response.status >= 500
+        );
+      }
+
+      const data = await response.json() as Record<string, unknown>;
+      const choices = data.choices as Array<Record<string, unknown>> | undefined;
+      if (!choices || choices.length === 0) {
+        throw new AIProviderError('No response from Groq API');
+      }
+      
+      const message = choices[0].message as Record<string, unknown> | undefined;
+      return {
+        text: (message?.content as string) || '',
+        rawResponse: data
+      };
+    }, options?.maxAttempts || 3, options?.retryDelay || 5000);
+  }
+
+  async generateImage(_prompt: string, _options?: ImageGenerationOptions): Promise<ImageGenerationResult> {
+    throw new AIProviderError(
+      'Image generation is not supported by GroqProvider. Use FAL.AI with the IMAGE_PROVIDER setting.',
+      'IMAGE_GENERATION_UNSUPPORTED',
+      undefined,
+      false
+    );
+  }
+
+  async transcribeAudio(_audioData: string, _mimeType: string): Promise<TranscriptionResult> {
+    throw new AIProviderError(
+      'Audio transcription is not supported by GroqProvider.',
+      'TRANSCRIPTION_UNSUPPORTED',
+      undefined,
+      false
+    );
+  }
+}
+
 // ==================== PROVIDER FACTORY ====================
 
 let cachedProvider: AIProvider | null = null;
@@ -541,11 +632,16 @@ export function getAIProvider(): AIProvider {
     ollamaBaseUrl: ENV_OLLAMA_BASE_URL,
     ollamaModel: ENV_OLLAMA_MODEL,
     ollamaApiKey: ENV_OLLAMA_API_KEY,
-    backendUrl: ENV_BACKEND_URL !== 'http://localhost:4000' ? ENV_BACKEND_URL : '' // Only use if explicitly set
+    groqApiKey: ENV_GROQ_API_KEY,
+    groqModel: ENV_GROQ_MODEL,
+    backendUrl: ENV_BACKEND_URL !== 'http://localhost:4000' ? ENV_BACKEND_URL : ''
   };
 
-  // Ollama takes priority - direct API calls
-  if (providerConfig.provider === 'ollama' || providerConfig.ollamaBaseUrl) {
+  // Groq provider (free, fast)
+  if (providerConfig.provider === 'groq' || (!providerConfig.geminiApiKey && !providerConfig.ollamaBaseUrl)) {
+    cachedProvider = new GroqProvider(providerConfig.groqApiKey, providerConfig.groqModel);
+    console.info(`Using Groq provider with model ${providerConfig.groqModel}`);
+  } else if (providerConfig.provider === 'ollama' && providerConfig.ollamaBaseUrl) {
     if (providerConfig.ollamaBaseUrl.includes('ollama.com')) {
       cachedProvider = new OllamaCloudProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel, providerConfig.ollamaApiKey);
       console.info(`Using Ollama Cloud provider: ${providerConfig.ollamaBaseUrl} with model ${providerConfig.ollamaModel}`);
@@ -554,11 +650,9 @@ export function getAIProvider(): AIProvider {
       console.info(`Using Ollama provider: ${providerConfig.ollamaBaseUrl} with model ${providerConfig.ollamaModel}`);
     }
   } else if (providerConfig.backendUrl) {
-    // Backend provider - only if backendUrl is explicitly configured (not localhost)
     cachedProvider = new BackendProvider(providerConfig.backendUrl);
     console.info(`Using backend provider: ${providerConfig.backendUrl}`);
   } else {
-    // Default to Gemini
     const apiKey = providerConfig.geminiApiKey || '';
     cachedProvider = new GeminiProvider(apiKey);
     console.info('Using Gemini provider');
@@ -573,8 +667,11 @@ export async function initializeAIProvider(): Promise<AIProvider> {
     return cachedProvider;
   }
 
-  // Ollama takes priority - direct API calls
-  if (config.provider === 'ollama' || config.ollamaBaseUrl) {
+  // Groq provider (free, fast) - default if no other provider is configured
+  if (config.provider === 'groq' || (!config.geminiApiKey && !config.ollamaBaseUrl)) {
+    cachedProvider = new GroqProvider(config.groqApiKey || ENV_GROQ_API_KEY, config.groqModel || ENV_GROQ_MODEL);
+    console.info(`Using Groq provider from runtime config with model ${config.groqModel || ENV_GROQ_MODEL}`);
+  } else if (config.provider === 'ollama' && config.ollamaBaseUrl) {
     const ollamaUrl = config.ollamaBaseUrl || 'https://ollama.com/api';
     if (ollamaUrl.includes('ollama.com')) {
       cachedProvider = new OllamaCloudProvider(ollamaUrl, config.ollamaModel || 'llama3', config.ollamaApiKey);
@@ -584,11 +681,9 @@ export async function initializeAIProvider(): Promise<AIProvider> {
       console.info(`Using Ollama provider from runtime config: ${ollamaUrl} with model ${config.ollamaModel}`);
     }
   } else if (config.backendUrl) {
-    // Backend provider - only if explicitly configured
     cachedProvider = new BackendProvider(config.backendUrl);
     console.info(`Using backend provider from runtime config: ${config.backendUrl}`);
   } else {
-    // Default to Gemini
     cachedProvider = new GeminiProvider(config.geminiApiKey || '');
     console.info('Using Gemini provider from runtime config');
   }

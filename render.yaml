@@ -19,16 +19,14 @@ services:
       - key: PORT
         value: 10000
       - key: AI_PROVIDER
-        value: ollama
-      - key: OLLAMA_BASE_URL
-        value: https://ollama.com/api
-      - key: OLLAMA_MODEL
-        value: llama3
+        value: groq
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
       - key: IMAGE_PROVIDER
         value: fal
       - key: FAL_MODEL
         value: fal-ai/flux-pro
-      - key: OLLAMA_API_KEY
+      - key: GROQ_API_KEY
         sync: false
       - key: FAL_API_KEY
         sync: false
