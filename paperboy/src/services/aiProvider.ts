@@ -8,6 +8,7 @@ const ENV_AI_PROVIDER = (import.meta.env.VITE_AI_PROVIDER || import.meta.env.AI_
 const ENV_GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY || '';
 const ENV_OLLAMA_BASE_URL = (import.meta.env.VITE_OLLAMA_BASE_URL || import.meta.env.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/$/, '');
 const ENV_OLLAMA_MODEL = import.meta.env.VITE_OLLAMA_MODEL || import.meta.env.OLLAMA_MODEL || 'llama3.2';
+const ENV_OLLAMA_API_KEY = import.meta.env.VITE_OLLAMA_API_KEY || import.meta.env.OLLAMA_API_KEY || '';
 const ENV_BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || import.meta.env.BACKEND_URL || 'http://localhost:4000').replace(/\/$/, '');
 
 let runtimeAIConfig: RuntimeAIConfig | null = null;
@@ -24,6 +25,7 @@ async function resolveAIConfig(): Promise<RuntimeAIConfig> {
       geminiApiKey: ENV_GEMINI_API_KEY,
       ollamaBaseUrl: ENV_OLLAMA_BASE_URL,
       ollamaModel: ENV_OLLAMA_MODEL,
+      ollamaApiKey: ENV_OLLAMA_API_KEY,
       backendUrl: ENV_BACKEND_URL
     },
     loaded
@@ -341,10 +343,20 @@ class OllamaProvider implements AIProvider {
 
   private baseUrl: string;
   private model: string;
+  private apiKey?: string;
 
-  constructor(baseUrl: string, model: string) {
+  constructor(baseUrl: string, model: string, apiKey?: string) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.model = model;
+    this.apiKey = apiKey;
+  }
+
+  private getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (this.apiKey) {
+      headers.Authorization = `Bearer ${this.apiKey}`;
+    }
+    return headers;
   }
 
   async generateText(prompt: string, options?: TextGenerationOptions): Promise<TextGenerationResult> {
@@ -372,7 +384,7 @@ class OllamaProvider implements AIProvider {
     return withRetry(async () => {
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.getHeaders(),
         body: JSON.stringify(body)
       });
 
@@ -442,7 +454,7 @@ class OllamaProvider implements AIProvider {
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.getHeaders(),
       body: JSON.stringify(body)
     });
 
@@ -475,6 +487,7 @@ export function getAIProvider(): AIProvider {
     geminiApiKey: ENV_GEMINI_API_KEY,
     ollamaBaseUrl: ENV_OLLAMA_BASE_URL,
     ollamaModel: ENV_OLLAMA_MODEL,
+    ollamaApiKey: ENV_OLLAMA_API_KEY,
     backendUrl: ENV_BACKEND_URL
   };
 
@@ -484,7 +497,7 @@ export function getAIProvider(): AIProvider {
   } else {
     switch (providerConfig.provider) {
       case 'ollama':
-        cachedProvider = new OllamaProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel);
+        cachedProvider = new OllamaProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel, providerConfig.ollamaApiKey);
         console.info(`Using Ollama provider: ${providerConfig.ollamaBaseUrl} with model ${providerConfig.ollamaModel}`);
         break;
       case 'gemini':
@@ -511,7 +524,7 @@ export async function initializeAIProvider(): Promise<AIProvider> {
   } else {
     switch (config.provider) {
       case 'ollama':
-        cachedProvider = new OllamaProvider(config.ollamaBaseUrl || 'http://localhost:11434', config.ollamaModel || 'llama3.2');
+        cachedProvider = new OllamaProvider(config.ollamaBaseUrl || 'http://localhost:11434', config.ollamaModel || 'llama3.2', config.ollamaApiKey);
         console.info(`Using Ollama provider from runtime config: ${config.ollamaBaseUrl} with model ${config.ollamaModel}`);
         break;
       case 'gemini':

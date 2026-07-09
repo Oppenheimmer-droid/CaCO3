@@ -13,13 +13,15 @@ describe('mergeAIConfig', () => {
       {
         provider: 'ollama',
         ollamaBaseUrl: 'http://runtime:11434',
-        ollamaModel: 'runtime-model'
+        ollamaModel: 'runtime-model',
+        ollamaApiKey: 'runtime-key'
       }
     );
 
     expect(result.provider).toBe('ollama');
     expect(result.ollamaBaseUrl).toBe('http://runtime:11434');
     expect(result.ollamaModel).toBe('runtime-model');
+    expect(result.ollamaApiKey).toBe('runtime-key');
     expect(result.geminiApiKey).toBe('env-key');
   });
 });

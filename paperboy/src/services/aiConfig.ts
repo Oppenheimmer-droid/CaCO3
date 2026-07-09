@@ -3,6 +3,7 @@ export interface RuntimeAIConfig {
   geminiApiKey?: string;
   ollamaBaseUrl?: string;
   ollamaModel?: string;
+  ollamaApiKey?: string;
   backendUrl?: string;
 }
 
@@ -12,6 +13,7 @@ export function mergeAIConfig(envConfig: RuntimeAIConfig = {}, runtimeConfig: Ru
     geminiApiKey: runtimeConfig.geminiApiKey || envConfig.geminiApiKey || '',
     ollamaBaseUrl: runtimeConfig.ollamaBaseUrl || envConfig.ollamaBaseUrl || 'http://localhost:11434',
     ollamaModel: runtimeConfig.ollamaModel || envConfig.ollamaModel || 'llama3.2',
+    ollamaApiKey: runtimeConfig.ollamaApiKey || envConfig.ollamaApiKey || '',
     backendUrl: runtimeConfig.backendUrl || envConfig.backendUrl || ''
   };
 }

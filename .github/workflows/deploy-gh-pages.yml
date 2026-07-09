@@ -6,16 +6,14 @@ name: Deploy to GitHub Pages
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -29,23 +27,13 @@ jobs:
       - name: Install dependencies
         run: cd paperboy && npm ci
       - name: Build app
+        env:
+          VITE_OLLAMA_API_KEY: ${{ secrets.VITE_OLLAMA_API_KEY }}
         run: cd paperboy && npm run build
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: paperboy/dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
       - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./paperboy/dist
+          publish_branch: gh-pages
+          force_orphan: true
