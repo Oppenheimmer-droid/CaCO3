@@ -7,11 +7,7 @@ services:
     env: node
     plan: free
     region: oregon
-    buildCommand: |
-      echo "=== Starting build ==="
-      # Build del frontend
-      npm run build
-      echo "=== Build complete ==="
+    buildCommand: npm run build
     startCommand: npm start
     healthCheckPath: /
     envVars:
