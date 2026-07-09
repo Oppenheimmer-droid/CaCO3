@@ -9,7 +9,7 @@ export interface RuntimeAIConfig {
 
 export function mergeAIConfig(envConfig: RuntimeAIConfig = {}, runtimeConfig: RuntimeAIConfig = {}): RuntimeAIConfig {
   return {
-    provider: runtimeConfig.provider || envConfig.provider || 'gemini',
+    provider: runtimeConfig.provider || envConfig.provider || 'ollama',
     geminiApiKey: runtimeConfig.geminiApiKey || envConfig.geminiApiKey || '',
     ollamaBaseUrl: runtimeConfig.ollamaBaseUrl || envConfig.ollamaBaseUrl || 'http://localhost:11434',
     ollamaModel: runtimeConfig.ollamaModel || envConfig.ollamaModel || 'llama3.2',

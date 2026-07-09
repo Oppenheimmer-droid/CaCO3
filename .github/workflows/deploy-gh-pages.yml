@@ -28,6 +28,7 @@ jobs:
         run: cd paperboy && npm ci
       - name: Build app
         env:
+          VITE_AI_PROVIDER: ollama
           VITE_OLLAMA_API_KEY: ${{ secrets.VITE_OLLAMA_API_KEY }}
         run: cd paperboy && npm run build
       - name: Deploy to GitHub Pages
