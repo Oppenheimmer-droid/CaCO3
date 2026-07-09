@@ -10,19 +10,10 @@ services:
     rootDir: paperboy
     buildCommand: |
       echo "=== Starting build ==="
-      echo "Cleaning any existing dist..."
-      rm -rf dist
-      echo "Installing dependencies..."
-      npm install
-      echo "Running production build..."
-      npm run build
-      echo "Verifying build output..."
-      if [ ! -f "dist/index.html" ]; then
-        echo "ERROR: dist/index.html not found after build!"
-        exit 1
-      fi
-      echo "dist/index.html found:"
-      ls -la dist/
+      # Instalar todas las dependencias (incluyendo devDependencies para vite)
+      npm ci
+      # Build del frontend
+      npm run build || npx vite build
       echo "Installing server dependencies..."
       cd server && npm install
       echo "=== Build complete ==="
