@@ -1,11 +1,33 @@
 import { AIProviderError, ImageGenerationOptions, TextGenerationOptions } from '../types';
 import { parseComicPanelData, parseStringArray, validatePanelCount, createProviderError } from '../utils/parser';
+import { loadRuntimeAIConfig, mergeAIConfig, RuntimeAIConfig } from './aiConfig';
 
 // Environment configuration
-const AI_PROVIDER = (import.meta.env.VITE_AI_PROVIDER || import.meta.env.AI_PROVIDER || 'gemini') as 'gemini' | 'ollama';
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY || '';
-const OLLAMA_BASE_URL = (import.meta.env.VITE_OLLAMA_BASE_URL || import.meta.env.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/$/, '');
-const OLLAMA_MODEL = import.meta.env.VITE_OLLAMA_MODEL || import.meta.env.OLLAMA_MODEL || 'llama3.2';
+const ENV_AI_PROVIDER = (import.meta.env.VITE_AI_PROVIDER || import.meta.env.AI_PROVIDER || 'gemini') as 'gemini' | 'ollama';
+const ENV_GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY || '';
+const ENV_OLLAMA_BASE_URL = (import.meta.env.VITE_OLLAMA_BASE_URL || import.meta.env.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/$/, '');
+const ENV_OLLAMA_MODEL = import.meta.env.VITE_OLLAMA_MODEL || import.meta.env.OLLAMA_MODEL || 'llama3.2';
+
+let runtimeAIConfig: RuntimeAIConfig | null = null;
+
+async function resolveAIConfig(): Promise<RuntimeAIConfig> {
+  if (runtimeAIConfig) {
+    return runtimeAIConfig;
+  }
+
+  const loaded = await loadRuntimeAIConfig();
+  runtimeAIConfig = mergeAIConfig(
+    {
+      provider: ENV_AI_PROVIDER,
+      geminiApiKey: ENV_GEMINI_API_KEY,
+      ollamaBaseUrl: ENV_OLLAMA_BASE_URL,
+      ollamaModel: ENV_OLLAMA_MODEL
+    },
+    loaded
+  );
+
+  return runtimeAIConfig;
+}
 
 export interface GeneratedImage {
   base64: string;
@@ -410,14 +432,21 @@ export function getAIProvider(): AIProvider {
     return cachedProvider;
   }
 
-  switch (AI_PROVIDER) {
+  const providerConfig = {
+    provider: ENV_AI_PROVIDER,
+    geminiApiKey: ENV_GEMINI_API_KEY,
+    ollamaBaseUrl: ENV_OLLAMA_BASE_URL,
+    ollamaModel: ENV_OLLAMA_MODEL
+  };
+
+  switch (providerConfig.provider) {
     case 'ollama':
-      cachedProvider = new OllamaProvider(OLLAMA_BASE_URL, OLLAMA_MODEL);
-      console.info(`Using Ollama provider: ${OLLAMA_BASE_URL} with model ${OLLAMA_MODEL}`);
+      cachedProvider = new OllamaProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel);
+      console.info(`Using Ollama provider: ${providerConfig.ollamaBaseUrl} with model ${providerConfig.ollamaModel}`);
       break;
     case 'gemini':
     default:
-      const apiKey = GEMINI_API_KEY || (typeof process !== 'undefined' ? (process.env as Record<string, string>).API_KEY : '') || '';
+      const apiKey = providerConfig.geminiApiKey || (typeof process !== 'undefined' ? (process.env as Record<string, string>).API_KEY : '') || '';
       cachedProvider = new GeminiProvider(apiKey);
       console.info('Using Gemini provider');
       break;
@@ -426,8 +455,30 @@ export function getAIProvider(): AIProvider {
   return cachedProvider;
 }
 
-export function resetAIProvider(): void {
-  cachedProvider = null;
+export async function initializeAIProvider(): Promise<AIProvider> {
+  const config = await resolveAIConfig();
+  if (cachedProvider) {
+    return cachedProvider;
+  }
+
+  switch (config.provider) {
+    case 'ollama':
+      cachedProvider = new OllamaProvider(config.ollamaBaseUrl || 'http://localhost:11434', config.ollamaModel || 'llama3.2');
+      console.info(`Using Ollama provider from runtime config: ${config.ollamaBaseUrl} with model ${config.ollamaModel}`);
+      break;
+    case 'gemini':
+    default:
+      cachedProvider = new GeminiProvider(config.geminiApiKey || '');
+      console.info('Using Gemini provider from runtime config');
+      break;
+  }
+
+  return cachedProvider;
 }
 
-export { AI_PROVIDER, GEMINI_API_KEY, OLLAMA_BASE_URL, OLLAMA_MODEL };
+export function resetAIProvider(): void {
+  cachedProvider = null;
+  runtimeAIConfig = null;
+}
+
+export { ENV_AI_PROVIDER as AI_PROVIDER, ENV_GEMINI_API_KEY as GEMINI_API_KEY, ENV_OLLAMA_BASE_URL as OLLAMA_BASE_URL, ENV_OLLAMA_MODEL as OLLAMA_MODEL };

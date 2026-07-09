@@ -111,6 +111,28 @@ Cada celda de la fachada puede recibir una URL de imagen propia. Para cargar tus
 
 Si una celda no tiene imagen, la aplicación muestra un placeholder neutro y sigue siendo editable desde el lightbox.
 
+## IA estática y GitHub Pages
+
+La app está preparada para desplegarse como sitio estático en GitHub Pages. El proveedor de IA puede configurarse sin backend mediante un archivo JSON público en la ruta [paperboy/public/config/ai-config.json](paperboy/public/config/ai-config.json):
+
+```json
+{
+  "provider": "ollama",
+  "ollamaBaseUrl": "http://localhost:11434",
+  "ollamaModel": "llama3.2"
+}
+```
+
+Para GitHub Pages, el flujo recomendado es:
+- usar Ollama en un equipo local o un servidor accesible desde la red,
+- o dejar el valor en `gemini` y suministrar `geminiApiKey` si quieres usar Gemini desde el cliente.
+
+> La app sigue siendo estática: no necesita un backend para servir la interfaz, aunque las funciones de IA dependerán de la disponibilidad del proveedor configurado.
+
+## Despliegue automático en GitHub Pages
+
+El repositorio incluye un workflow en [paperboy/.github/workflows/deploy-gh-pages.yml](paperboy/.github/workflows/deploy-gh-pages.yml) que construye la app y la publica en GitHub Pages cuando se hace push a Main.
+
 ## Seguridad en Generación de Imágenes
 
 El sistema incluye reglas de seguridad strictas para evitar contenido inapropiado:
