@@ -575,16 +575,11 @@ export function getAIProvider(): AIProvider {
     ollamaBaseUrl: ENV_OLLAMA_BASE_URL,
     ollamaModel: ENV_OLLAMA_MODEL,
     ollamaApiKey: ENV_OLLAMA_API_KEY,
-    backendUrl: ENV_BACKEND_URL
+    backendUrl: ENV_BACKEND_URL !== 'http://localhost:4000' ? ENV_BACKEND_URL : '' // Only use if explicitly set
   };
 
-  // Priority: Ollama/Gemini provider > BackendProvider
-  // Only use BackendProvider if explicitly configured AND not localhost
-  const isLocalhostBackend = providerConfig.backendUrl?.includes('localhost') || 
-                             providerConfig.backendUrl?.includes('127.0.0.1');
-
-  if (providerConfig.provider === 'ollama') {
-    // Check if it's Ollama Cloud (ollama.com)
+  // Ollama takes priority - direct API calls
+  if (providerConfig.provider === 'ollama' || providerConfig.ollamaBaseUrl) {
     if (providerConfig.ollamaBaseUrl.includes('ollama.com')) {
       cachedProvider = new OllamaCloudProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel, providerConfig.ollamaApiKey);
       console.info(`Using Ollama Cloud provider: ${providerConfig.ollamaBaseUrl} with model ${providerConfig.ollamaModel}`);
@@ -592,21 +587,15 @@ export function getAIProvider(): AIProvider {
       cachedProvider = new OllamaProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel, providerConfig.ollamaApiKey);
       console.info(`Using Ollama provider: ${providerConfig.ollamaBaseUrl} with model ${providerConfig.ollamaModel}`);
     }
-  } else if (providerConfig.provider === 'gemini' || !isLocalhostBackend) {
-    // Use Gemini or Backend (if not localhost)
-    if (providerConfig.backendUrl && !isLocalhostBackend) {
-      cachedProvider = new BackendProvider(providerConfig.backendUrl);
-      console.info(`Using backend provider: ${providerConfig.backendUrl}`);
-    } else {
-      const apiKey = providerConfig.geminiApiKey || '';
-      cachedProvider = new GeminiProvider(apiKey);
-      console.info('Using Gemini provider');
-    }
+  } else if (providerConfig.backendUrl) {
+    // Backend provider - only if backendUrl is explicitly configured (not localhost)
+    cachedProvider = new BackendProvider(providerConfig.backendUrl);
+    console.info(`Using backend provider: ${providerConfig.backendUrl}`);
   } else {
-    // Fallback to Gemini if localhost backend
+    // Default to Gemini
     const apiKey = providerConfig.geminiApiKey || '';
     cachedProvider = new GeminiProvider(apiKey);
-    console.info('Using Gemini provider (fallback from localhost backend)');
+    console.info('Using Gemini provider');
   }
 
   return cachedProvider;
@@ -618,12 +607,8 @@ export async function initializeAIProvider(): Promise<AIProvider> {
     return cachedProvider;
   }
 
-  // Priority: Ollama/Gemini provider > BackendProvider
-  const isLocalhostBackend = config.backendUrl?.includes('localhost') || 
-                             config.backendUrl?.includes('127.0.0.1');
-
-  if (config.provider === 'ollama') {
-    // Check if it's Ollama Cloud (ollama.com)
+  // Ollama takes priority - direct API calls
+  if (config.provider === 'ollama' || config.ollamaBaseUrl) {
     const ollamaUrl = config.ollamaBaseUrl || 'http://localhost:11434';
     if (ollamaUrl.includes('ollama.com')) {
       cachedProvider = new OllamaCloudProvider(ollamaUrl, config.ollamaModel || 'llama3.2', config.ollamaApiKey);
@@ -632,18 +617,14 @@ export async function initializeAIProvider(): Promise<AIProvider> {
       cachedProvider = new OllamaProvider(ollamaUrl, config.ollamaModel || 'llama3.2', config.ollamaApiKey);
       console.info(`Using Ollama provider from runtime config: ${ollamaUrl} with model ${config.ollamaModel}`);
     }
-  } else if (config.provider === 'gemini' || !isLocalhostBackend) {
-    if (config.backendUrl && !isLocalhostBackend) {
-      cachedProvider = new BackendProvider(config.backendUrl);
-      console.info(`Using backend provider from runtime config: ${config.backendUrl}`);
-    } else {
-      cachedProvider = new GeminiProvider(config.geminiApiKey || '');
-      console.info('Using Gemini provider from runtime config');
-    }
+  } else if (config.backendUrl) {
+    // Backend provider - only if explicitly configured
+    cachedProvider = new BackendProvider(config.backendUrl);
+    console.info(`Using backend provider from runtime config: ${config.backendUrl}`);
   } else {
-    // Fallback to Gemini
+    // Default to Gemini
     cachedProvider = new GeminiProvider(config.geminiApiKey || '');
-    console.info('Using Gemini provider (fallback from localhost backend)');
+    console.info('Using Gemini provider from runtime config');
   }
 
   return cachedProvider;

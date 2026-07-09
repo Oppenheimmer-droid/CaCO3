@@ -14,7 +14,8 @@ export function mergeAIConfig(envConfig: RuntimeAIConfig = {}, runtimeConfig: Ru
     ollamaBaseUrl: runtimeConfig.ollamaBaseUrl || envConfig.ollamaBaseUrl || 'http://localhost:11434',
     ollamaModel: runtimeConfig.ollamaModel || envConfig.ollamaModel || 'llama3.2',
     ollamaApiKey: runtimeConfig.ollamaApiKey || envConfig.ollamaApiKey || '',
-    backendUrl: runtimeConfig.backendUrl || envConfig.backendUrl || ''
+    // Ignore localhost backend URLs
+    backendUrl: (runtimeConfig.backendUrl || envConfig.backendUrl || '').replace(/localhost.*/, '')
   };
 }
 
