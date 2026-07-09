@@ -1,12 +1,14 @@
 import { AIProviderError, ImageGenerationOptions, TextGenerationOptions } from '../types';
 import { parseComicPanelData, parseStringArray, validatePanelCount, createProviderError } from '../utils/parser';
 import { loadRuntimeAIConfig, mergeAIConfig, RuntimeAIConfig } from './aiConfig';
+import { callBackendAI } from './aiBackend';
 
 // Environment configuration
 const ENV_AI_PROVIDER = (import.meta.env.VITE_AI_PROVIDER || import.meta.env.AI_PROVIDER || 'gemini') as 'gemini' | 'ollama';
 const ENV_GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY || '';
 const ENV_OLLAMA_BASE_URL = (import.meta.env.VITE_OLLAMA_BASE_URL || import.meta.env.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/$/, '');
 const ENV_OLLAMA_MODEL = import.meta.env.VITE_OLLAMA_MODEL || import.meta.env.OLLAMA_MODEL || 'llama3.2';
+const ENV_BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || import.meta.env.BACKEND_URL || 'http://localhost:4000').replace(/\/$/, '');
 
 let runtimeAIConfig: RuntimeAIConfig | null = null;
 
@@ -21,7 +23,8 @@ async function resolveAIConfig(): Promise<RuntimeAIConfig> {
       provider: ENV_AI_PROVIDER,
       geminiApiKey: ENV_GEMINI_API_KEY,
       ollamaBaseUrl: ENV_OLLAMA_BASE_URL,
-      ollamaModel: ENV_OLLAMA_MODEL
+      ollamaModel: ENV_OLLAMA_MODEL,
+      backendUrl: ENV_BACKEND_URL
     },
     loaded
   );
@@ -301,6 +304,36 @@ class GeminiProvider implements AIProvider {
 
 // ==================== OLLAMA PROVIDER ====================
 
+class BackendProvider implements AIProvider {
+  readonly name = 'backend';
+  readonly supportsImageGeneration = true;
+  readonly supportsTranscription = true;
+
+  private baseUrl: string;
+
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl.replace(/\/$/, '');
+  }
+
+  async generateText(prompt: string, options?: TextGenerationOptions): Promise<TextGenerationResult> {
+    const result = await callBackendAI('/generate', { prompt, provider: 'backend', options }, this.baseUrl);
+    return { text: result.text || '' };
+  }
+
+  async generateImage(prompt: string, options?: ImageGenerationOptions): Promise<ImageGenerationResult> {
+    const result = await callBackendAI('/generate-image', { prompt, options }, this.baseUrl);
+    return {
+      base64: result.base64 || '',
+      mimeType: result.mimeType || 'image/png'
+    };
+  }
+
+  async transcribeAudio(audioData: string, mimeType: string): Promise<TranscriptionResult> {
+    const result = await callBackendAI('/transcribe', { audioData, mimeType }, this.baseUrl);
+    return { text: result.text || '' };
+  }
+}
+
 class OllamaProvider implements AIProvider {
   readonly name = 'ollama';
   readonly supportsImageGeneration = false; // Most Ollama models don't support image generation
@@ -315,6 +348,11 @@ class OllamaProvider implements AIProvider {
   }
 
   async generateText(prompt: string, options?: TextGenerationOptions): Promise<TextGenerationResult> {
+    if (this.baseUrl.includes('/api')) {
+      const result = await callBackendAI('/generate', { prompt, provider: 'ollama' }, this.baseUrl);
+      return { text: result.text || '' };
+    }
+
     const url = `${this.baseUrl}/api/generate`;
     
     const body = {
@@ -436,20 +474,26 @@ export function getAIProvider(): AIProvider {
     provider: ENV_AI_PROVIDER,
     geminiApiKey: ENV_GEMINI_API_KEY,
     ollamaBaseUrl: ENV_OLLAMA_BASE_URL,
-    ollamaModel: ENV_OLLAMA_MODEL
+    ollamaModel: ENV_OLLAMA_MODEL,
+    backendUrl: ENV_BACKEND_URL
   };
 
-  switch (providerConfig.provider) {
-    case 'ollama':
-      cachedProvider = new OllamaProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel);
-      console.info(`Using Ollama provider: ${providerConfig.ollamaBaseUrl} with model ${providerConfig.ollamaModel}`);
-      break;
-    case 'gemini':
-    default:
-      const apiKey = providerConfig.geminiApiKey || (typeof process !== 'undefined' ? (process.env as Record<string, string>).API_KEY : '') || '';
-      cachedProvider = new GeminiProvider(apiKey);
-      console.info('Using Gemini provider');
-      break;
+  if (providerConfig.backendUrl) {
+    cachedProvider = new BackendProvider(providerConfig.backendUrl);
+    console.info(`Using backend provider: ${providerConfig.backendUrl}`);
+  } else {
+    switch (providerConfig.provider) {
+      case 'ollama':
+        cachedProvider = new OllamaProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel);
+        console.info(`Using Ollama provider: ${providerConfig.ollamaBaseUrl} with model ${providerConfig.ollamaModel}`);
+        break;
+      case 'gemini':
+      default:
+        const apiKey = providerConfig.geminiApiKey || (typeof process !== 'undefined' ? (process.env as Record<string, string>).API_KEY : '') || '';
+        cachedProvider = new GeminiProvider(apiKey);
+        console.info('Using Gemini provider');
+        break;
+    }
   }
 
   return cachedProvider;
@@ -461,16 +505,21 @@ export async function initializeAIProvider(): Promise<AIProvider> {
     return cachedProvider;
   }
 
-  switch (config.provider) {
-    case 'ollama':
-      cachedProvider = new OllamaProvider(config.ollamaBaseUrl || 'http://localhost:11434', config.ollamaModel || 'llama3.2');
-      console.info(`Using Ollama provider from runtime config: ${config.ollamaBaseUrl} with model ${config.ollamaModel}`);
-      break;
-    case 'gemini':
-    default:
-      cachedProvider = new GeminiProvider(config.geminiApiKey || '');
-      console.info('Using Gemini provider from runtime config');
-      break;
+  if (config.backendUrl) {
+    cachedProvider = new BackendProvider(config.backendUrl);
+    console.info(`Using backend provider from runtime config: ${config.backendUrl}`);
+  } else {
+    switch (config.provider) {
+      case 'ollama':
+        cachedProvider = new OllamaProvider(config.ollamaBaseUrl || 'http://localhost:11434', config.ollamaModel || 'llama3.2');
+        console.info(`Using Ollama provider from runtime config: ${config.ollamaBaseUrl} with model ${config.ollamaModel}`);
+        break;
+      case 'gemini':
+      default:
+        cachedProvider = new GeminiProvider(config.geminiApiKey || '');
+        console.info('Using Gemini provider from runtime config');
+        break;
+    }
   }
 
   return cachedProvider;
