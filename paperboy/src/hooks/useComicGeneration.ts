@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { getAIProvider } from '../services/aiProvider';
+import { getAIProvider, getImageProvider, FAL_API_KEY } from '../services/aiProvider';
 import { PanelData, AIProviderError } from '../types';
 import { parseComicPanelData, validatePanelCount, createProviderError } from '../utils/parser';
 import { DEFAULT_SCRIPT_PROMPT, IMAGE_PROMPT_SUFFIX, GENERATION_DEFAULTS } from '../constants';
@@ -41,6 +41,11 @@ export function useComicGeneration(): UseComicGenerationReturn {
     onComplete: () => void
   ) => {
     const provider = getAIProvider();
+    const imageProvider = getImageProvider('fal', FAL_API_KEY);
+    if (!imageProvider) {
+      onError('Proveedor de imágenes no disponible');
+      return;
+    }
     const generatedPanels: PanelData[] = [];
 
     try {
@@ -93,7 +98,7 @@ export function useComicGeneration(): UseComicGenerationReturn {
 
           while (attempts < maxAttempts && !success) {
             try {
-              const imageResult = await provider.generateImage(fullImagePrompt, {
+              const imageResult = await imageProvider.generateImage(fullImagePrompt, {
                 aspectRatio: '4:3'
               });
 
@@ -179,6 +184,11 @@ export function useComicGeneration(): UseComicGenerationReturn {
     onCancel: () => void
   ) => {
     const provider = getAIProvider();
+    const imageProvider = getImageProvider('fal', FAL_API_KEY);
+    if (!imageProvider) {
+      onError('Proveedor de imágenes no disponible');
+      return;
+    }
     const panelToUpdateIndex = currentPanels.length - 1 - panelIndex;
     
     // Mark panel as regenerating
@@ -199,7 +209,7 @@ export function useComicGeneration(): UseComicGenerationReturn {
       await new Promise(resolve => setTimeout(resolve, 3000));
 
       // Generate the image
-      const imageResult = await provider.generateImage(imagePrompt, {
+      const imageResult = await imageProvider.generateImage(imagePrompt, {
         aspectRatio: '4:3'
       });
 
@@ -246,10 +256,10 @@ export function useComicGeneration(): UseComicGenerationReturn {
     onPanelUpdate: (panels: PanelData[]) => void,
     onError: (error: string) => void
   ) => {
-    const provider = getAIProvider();
+    const imageProvider = getImageProvider('fal', FAL_API_KEY);
     
-    if (!provider.supportsImageGeneration) {
-      onError('El proveedor actual no soporta edición de imágenes.');
+    if (!imageProvider) {
+      onError('Proveedor de imágenes no disponible');
       return;
     }
 
@@ -270,9 +280,8 @@ export function useComicGeneration(): UseComicGenerationReturn {
       const mimeType = match[1];
       const base64Data = match[2];
 
-      // For now, regenerate with new prompt instead of actual editing
-      // (True image editing would require provider support)
-      const newImageResult = await provider.generateImage(editPrompt, {
+      // Use fal.ai for image regeneration
+      const newImageResult = await imageProvider.generateImage(editPrompt, {
         aspectRatio: '4:3'
       });
 

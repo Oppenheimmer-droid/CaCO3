@@ -10,6 +10,10 @@ const ENV_OLLAMA_BASE_URL = (import.meta.env.VITE_OLLAMA_BASE_URL || import.meta
 const ENV_OLLAMA_MODEL = import.meta.env.VITE_OLLAMA_MODEL || import.meta.env.OLLAMA_MODEL || 'llama3.2';
 const ENV_OLLAMA_API_KEY = import.meta.env.VITE_OLLAMA_API_KEY || import.meta.env.OLLAMA_API_KEY || '';
 const ENV_BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || import.meta.env.BACKEND_URL || 'http://localhost:4000').replace(/\/$/, '');
+// Image generation
+const ENV_IMAGE_PROVIDER = import.meta.env.VITE_IMAGE_PROVIDER || import.meta.env.IMAGE_PROVIDER || 'fal';
+const ENV_FAL_API_KEY = import.meta.env.VITE_FAL_API_KEY || import.meta.env.FAL_API_KEY || '';
+const ENV_FAL_MODEL = import.meta.env.VITE_FAL_MODEL || import.meta.env.FAL_MODEL || 'fal-ai/flux';
 
 let runtimeAIConfig: RuntimeAIConfig | null = null;
 
@@ -598,3 +602,10 @@ export function resetAIProvider(): void {
 }
 
 export { ENV_AI_PROVIDER as AI_PROVIDER, ENV_GEMINI_API_KEY as GEMINI_API_KEY, ENV_OLLAMA_BASE_URL as OLLAMA_BASE_URL, ENV_OLLAMA_MODEL as OLLAMA_MODEL };
+
+// Image provider exports
+export { FalImageProvider } from './imageProvider';
+export { getImageProvider } from './imageProvider';
+export const IMAGE_PROVIDER = ENV_IMAGE_PROVIDER;
+export const FAL_API_KEY = ENV_FAL_API_KEY;
+export const FAL_MODEL = ENV_FAL_MODEL;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { getAIProvider } from '../services/aiProvider';
+import { getAIProvider, getImageProvider, FAL_API_KEY } from '../services/aiProvider';
 import { AIProviderError } from '../types';
 import { parseStringArray, createProviderError } from '../utils/parser';
 import { AUTO_GENERATION_PROMPT, GENERATION_DEFAULTS } from '../constants';
@@ -56,10 +56,15 @@ export function useAutoGenerate(
 
       try {
         setWaiting(false);
-        const provider = getAIProvider();
         const prompt = prompts[progress];
 
-        const imageResult = await provider.generateImage(prompt, {
+        // Use fal.ai for image generation
+        const imageProvider = getImageProvider('fal', FAL_API_KEY);
+        if (!imageProvider) {
+          throw new Error('Image provider not available');
+        }
+
+        const imageResult = await imageProvider.generateImage(prompt, {
           aspectRatio: '1:1'
         });
 

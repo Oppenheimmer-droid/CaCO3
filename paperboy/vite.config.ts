@@ -21,7 +21,10 @@ export default defineConfig(({ mode }) => {
         'import.meta.env.VITE_AI_PROVIDER': JSON.stringify(env.AI_PROVIDER),
         'import.meta.env.VITE_OLLAMA_BASE_URL': JSON.stringify(env.OLLAMA_BASE_URL),
         'import.meta.env.VITE_OLLAMA_MODEL': JSON.stringify(env.OLLAMA_MODEL),
-        'import.meta.env.VITE_OLLAMA_API_KEY': JSON.stringify(env.OLLAMA_API_KEY)
+        'import.meta.env.VITE_OLLAMA_API_KEY': JSON.stringify(env.OLLAMA_API_KEY),
+        'import.meta.env.VITE_IMAGE_PROVIDER': JSON.stringify(env.IMAGE_PROVIDER || 'fal'),
+        'import.meta.env.VITE_FAL_API_KEY': JSON.stringify(env.FAL_API_KEY || ''),
+        'import.meta.env.VITE_FAL_MODEL': JSON.stringify(env.FAL_MODEL || 'fal-ai/flux')
       },
       resolve: {
         alias: {

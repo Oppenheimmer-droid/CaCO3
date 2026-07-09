@@ -2,5 +2,7 @@
   "provider": "ollama",
   "ollamaBaseUrl": "https://ollama.com/api",
   "ollamaModel": "llama3.2",
-  "ollamaApiKey": ""
+  "ollamaApiKey": "",
+  "imageProvider": "fal",
+  "falModel": "fal-ai/flux-pro"
 }

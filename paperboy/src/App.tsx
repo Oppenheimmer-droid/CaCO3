@@ -366,11 +366,16 @@ const App: React.FC = () => {
     const generateNext = async () => {
       try {
         setAutoGenWaiting(false);
-        const { getAIProvider } = await import('./services/aiProvider');
-        const ai = getAIProvider();
+        const { getAIProvider, getImageProvider, FAL_API_KEY } = await import('./services/aiProvider');
         const prompt = state.autoGen.prompts[state.autoGen.progress];
 
-        const imageResult = await ai.generateImage(prompt, { aspectRatio: '1:1' });
+        // Use fal.ai for image generation
+        const imageProvider = getImageProvider('fal', FAL_API_KEY);
+        if (!imageProvider) {
+          throw new Error('Image provider not available');
+        }
+
+        const imageResult = await imageProvider.generateImage(prompt, { aspectRatio: '1:1' });
         const imageUrl = `data:${imageResult.mimeType};base64,${imageResult.base64}`;
         addAutoGenImage(imageUrl);
         setAutoGenProgress(state.autoGen.progress + 1);

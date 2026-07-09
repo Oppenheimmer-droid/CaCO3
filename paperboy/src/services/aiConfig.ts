@@ -5,6 +5,10 @@ export interface RuntimeAIConfig {
   ollamaModel?: string;
   ollamaApiKey?: string;
   backendUrl?: string;
+  // Image generation
+  imageProvider?: string;
+  falApiKey?: string;
+  falModel?: string;
 }
 
 export function mergeAIConfig(envConfig: RuntimeAIConfig = {}, runtimeConfig: RuntimeAIConfig = {}): RuntimeAIConfig {
@@ -15,7 +19,11 @@ export function mergeAIConfig(envConfig: RuntimeAIConfig = {}, runtimeConfig: Ru
     ollamaModel: runtimeConfig.ollamaModel || envConfig.ollamaModel || 'llama3.2',
     ollamaApiKey: runtimeConfig.ollamaApiKey || envConfig.ollamaApiKey || '',
     // Ignore localhost backend URLs
-    backendUrl: (runtimeConfig.backendUrl || envConfig.backendUrl || '').replace(/localhost.*/, '')
+    backendUrl: (runtimeConfig.backendUrl || envConfig.backendUrl || '').replace(/localhost.*/, ''),
+    // Image generation
+    imageProvider: runtimeConfig.imageProvider || envConfig.imageProvider || 'fal',
+    falApiKey: runtimeConfig.falApiKey || envConfig.falApiKey || '',
+    falModel: runtimeConfig.falModel || envConfig.falModel || 'fal-ai/flux'
   };
 }
 
