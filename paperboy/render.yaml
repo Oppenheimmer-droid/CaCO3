@@ -26,7 +26,7 @@ services:
       - key: OLLAMA_BASE_URL
         value: https://ollama.com/api
       - key: OLLAMA_MODEL
-        value: llama3.2
+        value: llama3
       - key: OLLAMA_API_KEY
         sync: false
       - key: IMAGE_PROVIDER

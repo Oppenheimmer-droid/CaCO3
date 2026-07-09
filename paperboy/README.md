@@ -34,7 +34,7 @@ Usa modelos locales de Ollama para generación de texto y, si tu modelo lo sopor
 # Configuración
 VITE_AI_PROVIDER=ollama
 VITE_OLLAMA_BASE_URL=http://localhost:11434
-VITE_OLLAMA_MODEL=llama3.2
+VITE_OLLAMA_MODEL=llama3
 VITE_OLLAMA_API_KEY=
 ```
 
@@ -65,7 +65,7 @@ VITE_GEMINI_API_KEY=
 
 # Para Ollama (recomendado):
 VITE_OLLAMA_BASE_URL=http://localhost:11434
-VITE_OLLAMA_MODEL=llama3.2
+VITE_OLLAMA_MODEL=llama3
 VITE_OLLAMA_API_KEY=
 
 # Backend opcional para mantener las claves fuera del navegador
@@ -143,7 +143,7 @@ La app está preparada para desplegarse como sitio estático en GitHub Pages. El
 {
   "provider": "ollama",
   "ollamaBaseUrl": "http://localhost:11434",
-  "ollamaModel": "llama3.2",
+  "ollamaModel": "llama3",
   "ollamaApiKey": ""
 }
 ```
@@ -174,7 +174,7 @@ El proyecto está configurado para desplegarse en [Render](https://render.com/) 
    | `PORT` | `10000` | Puerto del servidor |
    | `AI_PROVIDER` | `ollama` | Proveedor de IA de texto |
    | `OLLAMA_BASE_URL` | `https://ollama.com/api` | URL de Ollama Cloud |
-   | `OLLAMA_MODEL` | `llama3.2` | Modelo Ollama |
+   | `OLLAMA_MODEL` | `llama3` | Modelo Ollama |
    | `OLLAMA_API_KEY` | Tu clave | Clave de Ollama (opcional) |
    | `IMAGE_PROVIDER` | `fal` | Proveedor de imágenes |
    | `FAL_API_KEY` | Tu clave | **Clave de FAL.AI** (requerida) |

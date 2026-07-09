@@ -109,7 +109,7 @@ app.post('/api/generate', async (req, res) => {
 async function callOllama(req, res) {
   const { prompt, options, model: reqModel, apiKey: reqApiKey } = req.body || {};
   const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-  const ollamaModel = reqModel || process.env.OLLAMA_MODEL || 'llama3.2';
+  const ollamaModel = reqModel || process.env.OLLAMA_MODEL || 'llama3';
   const ollamaApiKey = reqApiKey || process.env.OLLAMA_API_KEY || '';
   const headers = { 'Content-Type': 'application/json' };
   if (ollamaApiKey) {
@@ -200,7 +200,7 @@ app.get('/config/ai-config.json', (req, res) => {
     provider: process.env.AI_PROVIDER || 'gemini',
     geminiApiKey: process.env.GEMINI_API_KEY || '',
     ollamaBaseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
-    ollamaModel: process.env.OLLAMA_MODEL || 'llama3.2',
+    ollamaModel: process.env.OLLAMA_MODEL || 'llama3',
     ollamaApiKey: process.env.OLLAMA_API_KEY || '',
     backendUrl: ''
   };
