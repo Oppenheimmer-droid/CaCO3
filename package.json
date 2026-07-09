@@ -1,0 +1,11 @@
+{
+  "name": "paperboy-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "prebuild": "cd paperboy && npm install --include=dev && cd server && npm install && cd ..",
+    "build": "cd paperboy && npm run build",
+    "start": "node paperboy/server/server.js",
+    "dev": "cd paperboy && npm run dev"
+  }
+}

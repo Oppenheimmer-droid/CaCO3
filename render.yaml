@@ -7,17 +7,12 @@ services:
     env: node
     plan: free
     region: oregon
-    rootDir: paperboy
     buildCommand: |
       echo "=== Starting build ==="
-      # Instalar todas las dependencias (incluyendo devDependencies para vite)
-      npm install --include=dev
       # Build del frontend
       npm run build
-      echo "Installing server dependencies..."
-      cd server && npm install
       echo "=== Build complete ==="
-    startCommand: node server/server.js
+    startCommand: npm start
     healthCheckPath: /
     envVars:
       - key: NODE_ENV
