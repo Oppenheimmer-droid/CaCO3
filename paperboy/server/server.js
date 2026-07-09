@@ -80,7 +80,7 @@ const buildGeminiImage = async (prompt) => {
 };
 
 app.post('/api/generate', async (req, res) => {
-  const { prompt, provider = 'ollama', options } = req.body || {};
+  const { prompt, provider = 'ollama', options, model, apiKey } = req.body || {};
 
   if (!prompt) {
     return res.status(400).json({ error: 'Prompt is required' });
@@ -93,44 +93,62 @@ app.post('/api/generate', async (req, res) => {
         return res.json({ text });
       } catch (geminiError) {
         if (process.env.OLLAMA_BASE_URL || process.env.OLLAMA_MODEL) {
-          const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-          const ollamaModel = process.env.OLLAMA_MODEL || 'llama3.2';
-          const ollamaApiKey = process.env.OLLAMA_API_KEY || '';
-          const headers = { 'Content-Type': 'application/json' };
-          if (ollamaApiKey) {
-            headers.Authorization = `Bearer ${ollamaApiKey}`;
-          }
-          const response = await fetch(`${ollamaBaseUrl.replace(/\/$/, '')}/api/generate`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ model: ollamaModel, prompt, stream: false, options: { temperature: 0.7, ...(options || {}) } })
-          });
-          const data = await response.json();
-          return res.json({ text: data.response || '' });
+          return await callOllama(req, res);
         }
         throw geminiError;
       }
     }
 
-    const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-    const ollamaModel = process.env.OLLAMA_MODEL || 'llama3.2';
-    const ollamaApiKey = process.env.OLLAMA_API_KEY || '';
-    const headers = { 'Content-Type': 'application/json' };
-    if (ollamaApiKey) {
-      headers.Authorization = `Bearer ${ollamaApiKey}`;
-    }
-    const response = await fetch(`${ollamaBaseUrl.replace(/\/$/, '')}/api/generate`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ model: ollamaModel, prompt, stream: false, options: { temperature: 0.7, ...(options || {}) } })
-    });
-
-    const data = await response.json();
-    return res.json({ text: data.response || '' });
+    return await callOllama(req, res);
   } catch (error) {
     return res.status(500).json({ error: error instanceof Error ? error.message : 'AI generation failed' });
   }
 });
+
+// Helper function to call Ollama (local or cloud)
+async function callOllama(req, res) {
+  const { prompt, options, model: reqModel, apiKey: reqApiKey } = req.body || {};
+  const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+  const ollamaModel = reqModel || process.env.OLLAMA_MODEL || 'llama3.2';
+  const ollamaApiKey = reqApiKey || process.env.OLLAMA_API_KEY || '';
+  const headers = { 'Content-Type': 'application/json' };
+  if (ollamaApiKey) {
+    headers.Authorization = `Bearer ${ollamaApiKey}`;
+  }
+
+  // Check if using Ollama Cloud (ollama.com) - use OpenAI-compatible API
+  if (ollamaBaseUrl.includes('ollama.com')) {
+    const url = ollamaBaseUrl.replace(/\/api$/, '/v1') + '/chat/completions';
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: ollamaModel,
+        messages: [{ role: 'user', content: prompt }],
+        stream: false
+      })
+    });
+    
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Ollama Cloud error: ${response.status} - ${errorBody}`);
+    }
+    
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content || '';
+    return res.json({ text });
+  }
+  
+  // Local Ollama - use native API
+  const response = await fetch(`${ollamaBaseUrl.replace(/\/$/, '')}/api/generate`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ model: ollamaModel, prompt, stream: false, options: { temperature: 0.7, ...(options || {}) } })
+  });
+
+  const data = await response.json();
+  return res.json({ text: data.response || '' });
+}
 
 app.post('/api/generate-image', async (req, res) => {
   const { prompt } = req.body || {};

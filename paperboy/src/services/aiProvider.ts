@@ -336,68 +336,30 @@ class BackendProvider implements AIProvider {
   }
 }
 
-// Ollama Cloud Provider - Uses OpenAI-compatible API
+// Ollama Cloud Provider - Uses backend as proxy to avoid CORS
 class OllamaCloudProvider implements AIProvider {
   readonly name = 'ollama-cloud';
   readonly supportsImageGeneration = false;
   readonly supportsTranscription = false;
 
-  private baseUrl: string;
   private model: string;
   private apiKey?: string;
 
-  constructor(baseUrl: string, model: string, apiKey?: string) {
-    // Ollama Cloud uses OpenAI-compatible API at https://ollama.com/api
-    // Convert /api to /v1 for OpenAI compatibility
-    this.baseUrl = baseUrl.replace(/\/api$/, '/v1').replace(/\/$/, '');
+  constructor(_baseUrl: string, model: string, apiKey?: string) {
     this.model = model;
     this.apiKey = apiKey;
   }
 
-  private getHeaders(): Record<string, string> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (this.apiKey) {
-      headers.Authorization = `Bearer ${this.apiKey}`;
-    }
-    return headers;
-  }
-
   async generateText(prompt: string, options?: TextGenerationOptions): Promise<TextGenerationResult> {
-    const url = `${this.baseUrl}/chat/completions`;
-
-    const body: Record<string, unknown> = {
+    // Use backend proxy to avoid CORS issues
+    const result = await callBackendAI('/generate', { 
+      prompt, 
+      provider: 'ollama',
       model: options?.model || this.model,
-      messages: [{ role: 'user', content: prompt }],
-      stream: false
-    };
+      apiKey: this.apiKey
+    });
 
-    if (options?.responseMimeType === 'application/json') {
-      body.response_format = { type: 'json_object' };
-    }
-
-    return withRetry(async () => {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify(body)
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.text().catch(() => '');
-        throw new AIProviderError(
-          `Ollama Cloud API error: ${response.status} ${response.statusText} - ${errorBody}`,
-          undefined,
-          response.status,
-          response.status === 429 || response.status >= 500
-        );
-      }
-
-      const data = await response.json() as Record<string, unknown>;
-      const message = (data.choices as Array<{ message?: { content?: string } }>)?.[0]?.message;
-      const text = message?.content || '';
-
-      return { text, rawResponse: data };
-    }, options?.maxAttempts || 3, options?.retryDelay || 3000);
+    return { text: result.text || '' };
   }
 
   async generateImage(_prompt: string, _options?: ImageGenerationOptions): Promise<ImageGenerationResult> {
