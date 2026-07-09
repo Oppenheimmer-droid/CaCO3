@@ -10,13 +10,25 @@ Generador de cómics con IA que analiza texto, genera guiones de 8 viñetas y pr
 
 Paperboy soporta múltiples proveedores de IA que puedes configurar mediante variables de entorno:
 
-### Gemini (predeterminado)
+### Ollama (recomendado)
 
-Usa los modelos de Google Gemini para generación de texto e imágenes.
+Usa modelos locales de Ollama para generación de texto y, si tu modelo lo soporta, visión. Es la opción recomendada para mantener la app simple, privada y sin depender de claves expuestas en el navegador.
 
 ```bash
 # Configuración
-AI_PROVIDER=gemini
+VITE_AI_PROVIDER=ollama
+VITE_OLLAMA_BASE_URL=http://localhost:11434
+VITE_OLLAMA_MODEL=llama3.2
+VITE_OLLAMA_API_KEY=
+```
+
+### Gemini (opcional)
+
+Usa los modelos de Google Gemini para generación de texto, imágenes y transcripción. Solo conviene activarlo si quieres una alternativa más potente o si ya tienes una API key configurada.
+
+```bash
+# Configuración
+VITE_AI_PROVIDER=gemini
 VITE_GEMINI_API_KEY=tu_api_key_de_gemini
 ```
 
@@ -24,33 +36,24 @@ Modelos utilizados:
 - `gemini-2.0-flash` - Generación de guiones
 - `imagen-3-generate-001` - Generación de imágenes
 
-### Ollama (local)
-
-Usa modelos locales de Ollama para generación de texto.
-
-```bash
-# Configuración
-AI_PROVIDER=ollama
-VITE_OLLAMA_BASE_URL=http://localhost:11434
-VITE_OLLAMA_MODEL=llama3.2
-```
-
-**Nota:** La mayoría de modelos Ollama no soportan generación de imágenes. Para eso, considera usar Gemini o implementar soporte para modelos de visión como llava.
-
 ## Variables de Entorno
 
 Crea un archivo `.env.local` en la raíz del proyecto:
 
 ```bash
 # Proveedor: 'gemini' o 'ollama'
-AI_PROVIDER=gemini
+VITE_AI_PROVIDER=ollama
 
-# Para Gemini:
-VITE_GEMINI_API_KEY=tu_api_key
+# Para Gemini (opcional):
+VITE_GEMINI_API_KEY=
 
-# Para Ollama (opcional):
+# Para Ollama (recomendado):
 VITE_OLLAMA_BASE_URL=http://localhost:11434
 VITE_OLLAMA_MODEL=llama3.2
+VITE_OLLAMA_API_KEY=
+
+# Backend opcional para mantener las claves fuera del navegador
+VITE_BACKEND_URL=http://localhost:4000
 ```
 
 ### Variables de build (con prefijo VITE_)
@@ -119,13 +122,14 @@ La app está preparada para desplegarse como sitio estático en GitHub Pages. El
 {
   "provider": "ollama",
   "ollamaBaseUrl": "http://localhost:11434",
-  "ollamaModel": "llama3.2"
+  "ollamaModel": "llama3.2",
+  "ollamaApiKey": ""
 }
 ```
 
 Para GitHub Pages, el flujo recomendado es:
-- usar Ollama en un equipo local o un servidor accesible desde la red,
-- o dejar el valor en `gemini` y suministrar `geminiApiKey` si quieres usar Gemini desde el cliente.
+- usar Ollama como proveedor principal,
+- o habilitar Gemini solo si quieres una alternativa más potente y ya tienes la API key configurada.
 
 > La app sigue siendo estática: no necesita un backend para servir la interfaz, aunque las funciones de IA dependerán de la disponibilidad del proveedor configurado.
 
