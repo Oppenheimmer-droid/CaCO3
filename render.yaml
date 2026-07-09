@@ -24,12 +24,10 @@ services:
         value: production
       - key: PORT
         value: 10000
-      - key: GEMINI_API_KEY
-        sync: false
       - key: AI_PROVIDER
-        value: gemini
+        value: ollama
       - key: OLLAMA_BASE_URL
-        value: http://localhost:11434
+        value: https://ollama.com/api
       - key: OLLAMA_MODEL
         value: llama3.2
       - key: OLLAMA_API_KEY

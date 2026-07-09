@@ -1,7 +1,7 @@
 {
   "provider": "ollama",
-  "ollamaBaseUrl": "",
-  "ollamaModel": "",
+  "ollamaBaseUrl": "https://ollama.com/api",
+  "ollamaModel": "llama3.2",
   "ollamaApiKey": "",
   "backendUrl": ""
 }

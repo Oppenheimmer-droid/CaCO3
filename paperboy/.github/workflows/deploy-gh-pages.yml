@@ -30,6 +30,10 @@ jobs:
         run: cd paperboy && npm run build
         env:
           GITHUB_PAGES: true
+          AI_PROVIDER: ollama
+          OLLAMA_BASE_URL: https://ollama.com/api
+          OLLAMA_MODEL: llama3.2
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
