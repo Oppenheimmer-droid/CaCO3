@@ -549,7 +549,7 @@ class GroqProvider implements AIProvider {
 
   async generateText(prompt: string, options?: TextGenerationOptions): Promise<TextGenerationResult> {
     if (!this.apiKey) {
-      throw new AIProviderError('GROQ_API_KEY is required for GroqProvider', false, 401);
+      throw new AIProviderError('GROQ_API_KEY is required for GroqProvider', 'MISSING_API_KEY', 401, false);
     }
 
     const url = `${this.baseUrl}/chat/completions`;
