@@ -11,9 +11,9 @@ services:
     buildCommand: |
       echo "=== Starting build ==="
       # Instalar todas las dependencias (incluyendo devDependencies para vite)
-      npm ci
+      npm install --include=dev
       # Build del frontend
-      npm run build || npx vite build
+      npm run build
       echo "Installing server dependencies..."
       cd server && npm install
       echo "=== Build complete ==="

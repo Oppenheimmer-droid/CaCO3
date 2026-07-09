@@ -8,8 +8,8 @@ services:
     plan: free
     region: oregon
     buildCommand: |
-      # Instalar dependencias del frontend
-      npm install
+      # Instalar dependencias del frontend (incluyendo devDependencies)
+      npm install --include=dev
       # Build del frontend React
       npm run build
       # Instalar dependencias del servidor
