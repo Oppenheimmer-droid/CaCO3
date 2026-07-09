@@ -6,7 +6,7 @@ import { callBackendAI } from './aiBackend';
 // Environment configuration
 const ENV_AI_PROVIDER = (import.meta.env.VITE_AI_PROVIDER || import.meta.env.AI_PROVIDER || 'ollama') as 'gemini' | 'ollama';
 const ENV_GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY || '';
-const ENV_OLLAMA_BASE_URL = (import.meta.env.VITE_OLLAMA_BASE_URL || import.meta.env.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/$/, '');
+const ENV_OLLAMA_BASE_URL = (import.meta.env.VITE_OLLAMA_BASE_URL || import.meta.env.OLLAMA_BASE_URL || 'https://ollama.com/api').replace(/\/$/, '');
 const ENV_OLLAMA_MODEL = import.meta.env.VITE_OLLAMA_MODEL || import.meta.env.OLLAMA_MODEL || 'llama3';
 const ENV_OLLAMA_API_KEY = import.meta.env.VITE_OLLAMA_API_KEY || import.meta.env.OLLAMA_API_KEY || '';
 const ENV_BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || import.meta.env.BACKEND_URL || 'http://localhost:4000').replace(/\/$/, '');
@@ -575,7 +575,7 @@ export async function initializeAIProvider(): Promise<AIProvider> {
 
   // Ollama takes priority - direct API calls
   if (config.provider === 'ollama' || config.ollamaBaseUrl) {
-    const ollamaUrl = config.ollamaBaseUrl || 'http://localhost:11434';
+    const ollamaUrl = config.ollamaBaseUrl || 'https://ollama.com/api';
     if (ollamaUrl.includes('ollama.com')) {
       cachedProvider = new OllamaCloudProvider(ollamaUrl, config.ollamaModel || 'llama3', config.ollamaApiKey);
       console.info(`Using Ollama Cloud from runtime config: ${ollamaUrl} with model ${config.ollamaModel}`);
