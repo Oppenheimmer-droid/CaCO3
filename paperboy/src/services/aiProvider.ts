@@ -1,0 +1,433 @@
+import { AIProviderError, ImageGenerationOptions, TextGenerationOptions } from '../types';
+import { parseComicPanelData, parseStringArray, validatePanelCount, createProviderError } from '../utils/parser';
+
+// Environment configuration
+const AI_PROVIDER = (import.meta.env.VITE_AI_PROVIDER || import.meta.env.AI_PROVIDER || 'gemini') as 'gemini' | 'ollama';
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY || '';
+const OLLAMA_BASE_URL = (import.meta.env.VITE_OLLAMA_BASE_URL || import.meta.env.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/$/, '');
+const OLLAMA_MODEL = import.meta.env.VITE_OLLAMA_MODEL || import.meta.env.OLLAMA_MODEL || 'llama3.2';
+
+export interface GeneratedImage {
+  base64: string;
+  mimeType: string;
+}
+
+export interface TextGenerationResult {
+  text: string;
+  rawResponse?: unknown;
+}
+
+export interface ImageGenerationResult {
+  base64: string;
+  mimeType: string;
+}
+
+export interface TranscriptionResult {
+  text: string;
+}
+
+export interface AIProvider {
+  readonly name: string;
+  readonly supportsImageGeneration: boolean;
+  readonly supportsTranscription: boolean;
+  
+  generateText(prompt: string, options?: TextGenerationOptions): Promise<TextGenerationResult>;
+  generateImage(prompt: string, options?: ImageGenerationOptions): Promise<ImageGenerationResult>;
+  transcribeAudio(audioData: string, mimeType: string): Promise<TranscriptionResult>;
+}
+
+function getRetryableStatus(error: unknown): boolean {
+  const err = error as unknown as Record<string, unknown>;
+  const message = (err.message as string) || '';
+  return (
+    err.status === 429 ||
+    err.status === 500 ||
+    err.status === 503 ||
+    err.code === 429 ||
+    message.includes('429') ||
+    message.includes('RESOURCE_EXHAUSTED') ||
+    message.includes('Internal error') ||
+    message.includes('INTERNAL')
+  );
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxAttempts: number = 5,
+  baseDelay: number = 5000
+): Promise<T> {
+  let lastError: unknown;
+  
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      
+      if (!getRetryableStatus(error) || attempt === maxAttempts) {
+        throw createProviderError(error, `AI request failed after ${attempt} attempts`);
+      }
+      
+      // Exponential backoff
+      const errorRecord = error as unknown as Record<string, unknown>;
+      const message = (errorRecord.message as string) || '';
+      const isQuota = errorRecord.status === 429 || 
+                      message.includes('429') ||
+                      message.includes('RESOURCE_EXHAUSTED');
+      const waitTime = baseDelay * (isQuota ? 7 : 1) * attempt;
+      
+      console.warn(`Attempt ${attempt} failed, retrying in ${waitTime}ms...`);
+      await delay(waitTime);
+    }
+  }
+  
+  throw createProviderError(lastError, 'Max retry attempts exceeded');
+}
+
+// ==================== GEMINI PROVIDER ====================
+
+class GeminiProvider implements AIProvider {
+  readonly name = 'gemini';
+  readonly supportsImageGeneration = true;
+  readonly supportsTranscription = true;
+
+  private apiKey: string;
+  private baseUrl = 'https://generativelanguage.googleapis.com';
+
+  constructor(apiKey: string) {
+    if (!apiKey) {
+      throw new Error('GEMINI_API_KEY is required for GeminiProvider');
+    }
+    this.apiKey = apiKey;
+  }
+
+  async generateText(prompt: string, options?: TextGenerationOptions): Promise<TextGenerationResult> {
+    const model = options?.model || 'gemini-2.0-flash';
+    const url = `${this.baseUrl}/v1beta/models/${model}:generateContent?key=${this.apiKey}`;
+    
+    const body: Record<string, unknown> = {
+      contents: [{ parts: [{ text: prompt }] }]
+    };
+
+    if (options?.responseMimeType) {
+      body.generationConfig = {
+        responseMimeType: options.responseMimeType,
+        responseSchema: options.responseSchema
+      };
+    }
+
+    return withRetry(async () => {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => '');
+        throw new AIProviderError(
+          `Gemini API error: ${response.status} ${response.statusText} - ${errorBody}`,
+          undefined,
+          response.status,
+          response.status === 429 || response.status >= 500
+        );
+      }
+
+      const data = await response.json() as Record<string, unknown>;
+      const text = this.extractText(data);
+      
+      return { text, rawResponse: data };
+    }, options?.maxAttempts || 5, options?.retryDelay || 5000);
+  }
+
+  async generateImage(prompt: string, options?: ImageGenerationOptions): Promise<ImageGenerationResult> {
+    const model = 'imagen-3-generate-001';
+    const aspectRatio = options?.aspectRatio || '4:3';
+    const url = `${this.baseUrl}/v1beta/models/${model}:predict?key=${this.apiKey}`;
+    
+    const body = {
+      prompt: prompt,
+      config: {
+        aspectRatio: aspectRatio,
+        sampleCount: 1
+      }
+    };
+
+    return withRetry(async () => {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => '');
+        throw new AIProviderError(
+          `Gemini Imagen error: ${response.status} ${response.statusText} - ${errorBody}`,
+          undefined,
+          response.status,
+          response.status === 429 || response.status >= 500
+        );
+      }
+
+      const data = await response.json() as Record<string, unknown>;
+      
+      // Extract image from prediction results
+      const predictions = data.predictions as Array<Record<string, unknown>> | undefined;
+      if (!predictions || predictions.length === 0) {
+        throw new AIProviderError('No image generated - content may have been filtered');
+      }
+
+      const bytesBase64 = predictions[0].bytesBase64Encoded as string;
+      if (!bytesBase64) {
+        throw new AIProviderError('No image data in response');
+      }
+
+      return {
+        base64: bytesBase64,
+        mimeType: 'image/png'
+      };
+    }, options?.maxAttempts || 5, options?.retryDelay || 10000);
+  }
+
+  async transcribeAudio(audioData: string, mimeType: string): Promise<TranscriptionResult> {
+    const model = 'gemini-2.0-flash-exp';
+    const url = `${this.baseUrl}/v1beta/models/${model}:generateContent?key=${this.apiKey}`;
+    
+    const parts: Array<{ inlineData?: { data: string; mimeType: string }; text?: string }> = [
+      { inlineData: { data: audioData, mimeType } },
+      { text: 'Transcribe este audio. Devuelve solo el texto transcrito, sin explicaciones.' }
+    ];
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts }]
+      })
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      throw new AIProviderError(
+        `Transcription error: ${response.status} ${response.statusText} - ${errorBody}`,
+        undefined,
+        response.status
+      );
+    }
+
+    const data = await response.json() as Record<string, unknown>;
+    const text = this.extractText(data);
+    
+    if (!text) {
+      throw new AIProviderError('No transcription text in response');
+    }
+
+    return { text };
+  }
+
+  // Legacy method for backwards compatibility with original code
+  async generateContent(model: string, contents: { parts: Array<{ text?: string; inlineData?: { data: string; mimeType: string } }> }, config?: Record<string, unknown>): Promise<{ text?: string; candidates?: Array<{ content?: { parts?: Array<{ inlineData?: { data: string; mimeType: string } }> } }> }> {
+    const url = `${this.baseUrl}/v1beta/models/${model}:generateContent?key=${this.apiKey}`;
+    
+    const body: Record<string, unknown> = { contents };
+    if (config) {
+      body.generationConfig = config;
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      throw new AIProviderError(
+        `Gemini API error: ${response.status} ${response.statusText} - ${errorBody}`,
+        undefined,
+        response.status
+      );
+    }
+
+    return response.json();
+  }
+
+  private extractText(data: Record<string, unknown>): string {
+    const candidates = data.candidates as Array<Record<string, unknown>> | undefined;
+    if (!candidates || candidates.length === 0) {
+      return '';
+    }
+
+    const content = candidates[0].content as Record<string, unknown> | undefined;
+    if (!content) {
+      return '';
+    }
+
+    const parts = content.parts as Array<Record<string, unknown>> | undefined;
+    if (!parts || parts.length === 0) {
+      return '';
+    }
+
+    return (parts[0].text as string) || '';
+  }
+}
+
+// ==================== OLLAMA PROVIDER ====================
+
+class OllamaProvider implements AIProvider {
+  readonly name = 'ollama';
+  readonly supportsImageGeneration = false; // Most Ollama models don't support image generation
+  readonly supportsTranscription = true;
+
+  private baseUrl: string;
+  private model: string;
+
+  constructor(baseUrl: string, model: string) {
+    this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.model = model;
+  }
+
+  async generateText(prompt: string, options?: TextGenerationOptions): Promise<TextGenerationResult> {
+    const url = `${this.baseUrl}/api/generate`;
+    
+    const body = {
+      model: options?.model || this.model,
+      prompt,
+      stream: false,
+      options: {
+        temperature: 0.7
+      }
+    };
+
+    // Add JSON mode if schema is requested
+    if (options?.responseMimeType === 'application/json') {
+      (body.options as Record<string, unknown>).format = 'json';
+    }
+
+    return withRetry(async () => {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => '');
+        throw new AIProviderError(
+          `Ollama API error: ${response.status} ${response.statusText} - ${errorBody}`,
+          undefined,
+          response.status,
+          response.status === 429 || response.status >= 500
+        );
+      }
+
+      const data = await response.json() as Record<string, unknown>;
+      
+      return {
+        text: (data.response as string) || '',
+        rawResponse: data
+      };
+    }, options?.maxAttempts || 3, options?.retryDelay || 3000);
+  }
+
+  async generateImage(prompt: string, _options?: ImageGenerationOptions): Promise<ImageGenerationResult> {
+    // Ollama's standard models don't support image generation
+    // If you have a vision model like llava, you could use the /api/chat endpoint
+    throw new AIProviderError(
+      `Image generation is not supported by OllamaProvider by default. ` +
+      `If you have a vision-capable model (like llava), you can implement custom support. ` +
+      `Current model: ${this.model}`,
+      'IMAGE_GENERATION_UNSUPPORTED',
+      undefined,
+      false
+    );
+  }
+
+  async transcribeAudio(audioData: string, mimeType: string): Promise<TranscriptionResult> {
+    // Ollama doesn't have built-in transcription
+    // Use a local Whisper model via API if available
+    const url = `${this.baseUrl}/api/transcribe`;
+    
+    // For now, return error - would need to implement with local Whisper
+    throw new AIProviderError(
+      'Audio transcription requires a local Whisper API or similar service. ' +
+      'Ollama does not provide native transcription. Consider using a separate service ' +
+      'or the Gemini provider for audio transcription.',
+      'TRANSCRIPTION_UNSUPPORTED',
+      undefined,
+      false
+    );
+  }
+
+  // Try to use vision model for image understanding
+  async describeImage(imageBase64: string, mimeType: string, prompt: string = 'Describe this image in detail.'): Promise<string> {
+    const url = `${this.baseUrl}/api/chat`;
+    
+    const body = {
+      model: this.model,
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+          images: [imageBase64]
+        }
+      ],
+      stream: false
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      throw new AIProviderError(
+        `Ollama vision error: ${response.status} ${response.statusText} - ${errorBody}`,
+        undefined,
+        response.status
+      );
+    }
+
+    const data = await response.json() as Record<string, unknown>;
+    const message = data.message as Record<string, unknown> | undefined;
+    return (message?.content as string) || '';
+  }
+}
+
+// ==================== PROVIDER FACTORY ====================
+
+let cachedProvider: AIProvider | null = null;
+
+export function getAIProvider(): AIProvider {
+  if (cachedProvider) {
+    return cachedProvider;
+  }
+
+  switch (AI_PROVIDER) {
+    case 'ollama':
+      cachedProvider = new OllamaProvider(OLLAMA_BASE_URL, OLLAMA_MODEL);
+      console.info(`Using Ollama provider: ${OLLAMA_BASE_URL} with model ${OLLAMA_MODEL}`);
+      break;
+    case 'gemini':
+    default:
+      const apiKey = GEMINI_API_KEY || (typeof process !== 'undefined' ? (process.env as Record<string, string>).API_KEY : '') || '';
+      cachedProvider = new GeminiProvider(apiKey);
+      console.info('Using Gemini provider');
+      break;
+  }
+
+  return cachedProvider;
+}
+
+export function resetAIProvider(): void {
+  cachedProvider = null;
+}
+
+export { AI_PROVIDER, GEMINI_API_KEY, OLLAMA_BASE_URL, OLLAMA_MODEL };

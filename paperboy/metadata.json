@@ -1,0 +1,5 @@
+{
+  "name": "Paperboy",
+  "description": "Generador de cómics e imágenes secuenciales mediante IA a partir de texto, audio o PDF.",
+  "requestFramePermissions": []
+}
