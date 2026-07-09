@@ -1,5 +1,25 @@
 /// <reference types="vite/client" />
 
+// CSS modules
+declare module '*.css' {
+  const content: string;
+  export default content;
+}
+
+// Image imports
+declare module '*.svg' {
+  const content: string;
+  export default content;
+}
+declare module '*.png' {
+  const content: string;
+  export default content;
+}
+declare module '*.jpg' {
+  const content: string;
+  export default content;
+}
+
 interface ImportMetaEnv {
   readonly VITE_AI_PROVIDER: string;
   readonly VITE_GEMINI_API_KEY: string;
