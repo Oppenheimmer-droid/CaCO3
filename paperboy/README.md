@@ -133,6 +133,70 @@ Para GitHub Pages, el flujo recomendado es:
 
 > La app sigue siendo estática: no necesita un backend para servir la interfaz, aunque las funciones de IA dependerán de la disponibilidad del proveedor configurado.
 
+## Despliegue en Render
+
+El proyecto está configurado para desplegarse en [Render](https://render.com/) usando el blueprint `render.yaml`.
+
+### Pasos para desplegar:
+
+1. **Conecta tu repositorio a Render:**
+   - Ve a [dashboard.render.com](https://dashboard.render.com)
+   - Crea una nueva cuenta o inicia sesión
+   - Click en "New +" > "Blueprint"
+
+2. **Configura las variables de entorno:**
+   En el dashboard de Render, agrega las siguientes variables de entorno para tu servicio:
+
+   | Variable | Valor | Descripción |
+   |----------|-------|-------------|
+   | `NODE_ENV` | `production` | Entorno de producción |
+   | `PORT` | `10000` | Puerto del servidor |
+   | `GEMINI_API_KEY` | Tu clave API | Clave de Google Gemini (requerida) |
+   | `AI_PROVIDER` | `gemini` | Proveedor de IA |
+   | `OLLAMA_BASE_URL` | `http://localhost:11434` | URL de Ollama (opcional) |
+   | `OLLAMA_MODEL` | `llama3.2` | Modelo Ollama (opcional) |
+
+   **Nota:** La variable `GEMINI_API_KEY` debe configurarse como `sync: false` para proteger la clave.
+
+3. **Despliegue automático:**
+   - Render detectará automáticamente el archivo `render.yaml`
+   - Hará build del frontend y servidor
+   - Desplegará la aplicación
+
+### Obtención de la clave API de Gemini:
+
+1. Ve a [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Crea una nueva API key
+3. Configúrala en las variables de entorno de Render
+
+### Arquitectura del despliegue:
+
+```
+┌─────────────────────────────────────────────┐
+│              Render Service                  │
+│  ┌─────────────────────────────────────┐    │
+│  │         Express Server              │    │
+│  │  ┌───────────┐  ┌───────────────┐  │    │
+│  │  │  Static   │  │    API        │  │    │
+│  │  │  Files    │  │   Endpoints   │  │    │
+│  │  │  (dist/)  │  │  /api/*       │  │    │
+│  │  └───────────┘  └───────────────┘  │    │
+│  └─────────────────────────────────────┘    │
+│                    │                        │
+│                    ▼                        │
+│         Google Gemini API                    │
+└─────────────────────────────────────────────┘
+```
+
+### Endpoints disponibles:
+
+- `GET /` - Sirve la aplicación React
+- `GET /health` - Health check
+- `GET /config/ai-config.json` - Configuración de IA
+- `POST /api/generate` - Generación de texto con IA
+- `POST /api/generate-image` - Generación de imágenes
+- `POST /api/transcribe` - Transcripción de audio
+
 ## Despliegue automático en GitHub Pages
 
 El repositorio incluye un workflow en [paperboy/.github/workflows/deploy-gh-pages.yml](paperboy/.github/workflows/deploy-gh-pages.yml) que construye la app y la publica en GitHub Pages cuando se hace push a Main.

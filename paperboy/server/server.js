@@ -1,11 +1,26 @@
 import express from 'express';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
-app.use(express.json());
+const PORT = Number(process.env.PORT || 10000);
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+// Servir archivos estáticos del frontend compilado
+const distPath = join(__dirname, '..', 'dist');
+if (IS_PRODUCTION) {
+  app.use(express.static(distPath));
+}
+
+app.use(express.json({ limit: '50mb' }));
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Private-Network', 'true');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
   }
@@ -146,7 +161,32 @@ app.post('/api/transcribe', async (req, res) => {
   }
 });
 
-const port = Number(process.env.PORT || 4000);
-app.listen(port, () => {
-  console.log(`Paperboy backend listening on port ${port}`);
+// Endpoint para servir la configuración de IA dinámicamente
+app.get('/config/ai-config.json', (req, res) => {
+  const config = {
+    provider: process.env.AI_PROVIDER || 'gemini',
+    geminiApiKey: process.env.GEMINI_API_KEY || '',
+    ollamaBaseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
+    ollamaModel: process.env.OLLAMA_MODEL || 'llama3.2',
+    ollamaApiKey: process.env.OLLAMA_API_KEY || '',
+    backendUrl: ''
+  };
+  res.json(config);
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// SPA routing: servir index.html para todas las rutas no-API
+if (IS_PRODUCTION) {
+  app.get('*', (req, res) => {
+    res.sendFile(join(distPath, 'index.html'));
+  });
+}
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Paperboy server listening on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });

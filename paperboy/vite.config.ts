@@ -11,13 +11,21 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+        'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+        'import.meta.env.VITE_AI_PROVIDER': JSON.stringify(env.AI_PROVIDER),
+        'import.meta.env.VITE_OLLAMA_BASE_URL': JSON.stringify(env.OLLAMA_BASE_URL),
+        'import.meta.env.VITE_OLLAMA_MODEL': JSON.stringify(env.OLLAMA_MODEL),
+        'import.meta.env.VITE_OLLAMA_API_KEY': JSON.stringify(env.OLLAMA_API_KEY),
+        'import.meta.env.VITE_BACKEND_URL': JSON.stringify(env.BACKEND_URL)
       },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      build: {
+        outDir: 'dist',
+        emptyOutDir: true
       }
     };
 });

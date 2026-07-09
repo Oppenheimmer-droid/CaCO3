@@ -1,12 +1,36 @@
+# Paperboy - Render Blueprint
+# Despliegue completo con frontend React y backend Express
+
 services:
   - type: web
-    name: paperboy-server
+    name: paperboy
     env: node
     plan: free
-    buildCommand: "cd server && npm install"
-    startCommand: "cd server && npm start"
+    region: oregon
+    buildCommand: |
+      # Instalar dependencias del frontend
+      npm install
+      # Build del frontend React
+      npm run build
+      # Instalar dependencias del servidor
+      cd server && npm install
+    startCommand: node server/server.js
+    healthCheckPath: /
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
+      # Clave API de Gemini (requerida para funcionalidades de IA)
+      - key: GEMINI_API_KEY
+        sync: false
+      # Proveedor de IA: 'gemini' o 'ollama'
+      - key: AI_PROVIDER
+        value: gemini
+      # Configuración de Ollama (opcional, para fallback)
+      - key: OLLAMA_BASE_URL
+        value: http://localhost:11434
+      - key: OLLAMA_MODEL
+        value: llama3.2
+      - key: OLLAMA_API_KEY
+        sync: false
