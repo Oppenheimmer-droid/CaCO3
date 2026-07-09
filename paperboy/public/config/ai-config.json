@@ -4,5 +4,6 @@
   "ollamaModel": "llama3",
   "ollamaApiKey": "",
   "imageProvider": "fal",
-  "falModel": "fal-ai/flux-pro"
+  "falModel": "fal-ai/flux-pro",
+  "falApiKey": "3d76a347-a4a7-42d5-a0e2-ae8acb8a2284:1c2fb63b1a96591f9037e098b2512bbb"
 }
