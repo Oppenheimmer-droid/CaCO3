@@ -1,18 +1,33 @@
 import express from 'express';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { existsSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Usar PROJECT_ROOT si está definido (Render), si no usar __dirname
+const projectRoot = process.env.PROJECT_ROOT || join(__dirname, '..');
+const distPath = join(projectRoot, 'dist');
+
+console.log('Server paths:');
+console.log('  __dirname:', __dirname);
+console.log('  projectRoot:', projectRoot);
+console.log('  distPath:', distPath);
+console.log('  dist exists:', existsSync(distPath));
 
 const app = express();
 const PORT = Number(process.env.PORT || 10000);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 // Servir archivos estáticos del frontend compilado
-const distPath = join(__dirname, '..', 'dist');
 if (IS_PRODUCTION) {
-  app.use(express.static(distPath));
+  if (existsSync(distPath)) {
+    app.use(express.static(distPath));
+    console.log('Serving static files from:', distPath);
+  } else {
+    console.error('WARNING: dist folder not found at', distPath);
+  }
 }
 
 app.use(express.json({ limit: '50mb' }));
@@ -181,8 +196,23 @@ app.get('/health', (req, res) => {
 
 // SPA routing: servir index.html para todas las rutas no-API
 if (IS_PRODUCTION) {
-  app.get('*', (req, res) => {
-    res.sendFile(join(distPath, 'index.html'));
+  app.get('*', (req, res, next) => {
+    // No aplicar SPA routing para rutas API
+    if (req.path.startsWith('/api') || req.path.startsWith('/config') || req.path === '/health') {
+      return next();
+    }
+    const indexPath = join(distPath, 'index.html');
+    if (existsSync(indexPath)) {
+      res.sendFile(indexPath, (err) => {
+        if (err) {
+          console.error('Error sending index.html:', err);
+          next();
+        }
+      });
+    } else {
+      console.error('index.html not found at:', indexPath);
+      res.status(500).send('Application not built. Run npm run build first.');
+    }
   });
 }
 

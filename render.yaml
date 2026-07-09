@@ -9,12 +9,12 @@ services:
     region: oregon
     rootDir: paperboy
     buildCommand: |
-      # Instalar dependencias del frontend
       npm install
-      # Build del frontend React
       npm run build
-      # Instalar dependencias del servidor
+      echo "Build completed. Checking dist..."
+      ls -la dist/ || echo "ERROR: dist not found"
       cd server && npm install
+      echo "Server dependencies installed"
     startCommand: node server/server.js
     healthCheckPath: /
     envVars:
@@ -22,13 +22,10 @@ services:
         value: production
       - key: PORT
         value: 10000
-      # Clave API de Gemini (requerida para funcionalidades de IA)
       - key: GEMINI_API_KEY
         sync: false
-      # Proveedor de IA: 'gemini' o 'ollama'
       - key: AI_PROVIDER
         value: gemini
-      # Configuración de Ollama (opcional, para fallback)
       - key: OLLAMA_BASE_URL
         value: http://localhost:11434
       - key: OLLAMA_MODEL
