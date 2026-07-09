@@ -336,6 +336,93 @@ class BackendProvider implements AIProvider {
   }
 }
 
+// Ollama Cloud Provider - Uses OpenAI-compatible API
+class OllamaCloudProvider implements AIProvider {
+  readonly name = 'ollama-cloud';
+  readonly supportsImageGeneration = false;
+  readonly supportsTranscription = false;
+
+  private baseUrl: string;
+  private model: string;
+  private apiKey?: string;
+
+  constructor(baseUrl: string, model: string, apiKey?: string) {
+    // Ollama Cloud uses OpenAI-compatible API at https://ollama.com/api
+    // Convert /api to /v1 for OpenAI compatibility
+    this.baseUrl = baseUrl.replace(/\/api$/, '/v1').replace(/\/$/, '');
+    this.model = model;
+    this.apiKey = apiKey;
+  }
+
+  private getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (this.apiKey) {
+      headers.Authorization = `Bearer ${this.apiKey}`;
+    }
+    return headers;
+  }
+
+  async generateText(prompt: string, options?: TextGenerationOptions): Promise<TextGenerationResult> {
+    const url = `${this.baseUrl}/chat/completions`;
+
+    const body: Record<string, unknown> = {
+      model: options?.model || this.model,
+      messages: [{ role: 'user', content: prompt }],
+      stream: false
+    };
+
+    if (options?.responseMimeType === 'application/json') {
+      body.response_format = { type: 'json_object' };
+    }
+
+    return withRetry(async () => {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => '');
+        throw new AIProviderError(
+          `Ollama Cloud API error: ${response.status} ${response.statusText} - ${errorBody}`,
+          undefined,
+          response.status,
+          response.status === 429 || response.status >= 500
+        );
+      }
+
+      const data = await response.json() as Record<string, unknown>;
+      const message = (data.choices as Array<{ message?: { content?: string } }>)?.[0]?.message;
+      const text = message?.content || '';
+
+      return { text, rawResponse: data };
+    }, options?.maxAttempts || 3, options?.retryDelay || 3000);
+  }
+
+  async generateImage(_prompt: string, _options?: ImageGenerationOptions): Promise<ImageGenerationResult> {
+    throw new AIProviderError('Image generation is not supported by Ollama Cloud', 'IMAGE_GENERATION_UNSUPPORTED');
+  }
+
+  async generateComicPanels(panelCount: number, options?: TextGenerationOptions): Promise<{ panels: Array<{ title: string; description: string; caption: string; characters: string[]; background: string }> }> {
+    const prompt = `Generate ${panelCount} comic panels for a story. Return valid JSON with an array of panels, each containing: title, description, characters (array), background, and caption.`;
+
+    const result = await this.generateText(prompt, {
+      responseMimeType: 'application/json'
+    });
+
+    const parseResult = parseComicPanelData(result.text);
+    if (!parseResult.success || !parseResult.data) {
+      throw new AIProviderError(`Failed to parse comic panels: ${parseResult.error}`);
+    }
+    return { panels: parseResult.data as Array<{ title: string; description: string; caption: string; characters: string[]; background: string }> };
+  }
+
+  async transcribeAudio(_audioData: string, _mimeType: string): Promise<TranscriptionResult> {
+    throw new AIProviderError('Transcription is not supported by Ollama Cloud', 'TRANSCRIPTION_UNSUPPORTED');
+  }
+}
+
 class OllamaProvider implements AIProvider {
   readonly name = 'ollama';
   readonly supportsImageGeneration = false; // Most Ollama models don't support image generation
@@ -494,19 +581,20 @@ export function getAIProvider(): AIProvider {
   if (providerConfig.backendUrl) {
     cachedProvider = new BackendProvider(providerConfig.backendUrl);
     console.info(`Using backend provider: ${providerConfig.backendUrl}`);
-  } else {
-    switch (providerConfig.provider) {
-      case 'ollama':
-        cachedProvider = new OllamaProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel, providerConfig.ollamaApiKey);
-        console.info(`Using Ollama provider: ${providerConfig.ollamaBaseUrl} with model ${providerConfig.ollamaModel}`);
-        break;
-      case 'gemini':
-      default:
-        const apiKey = providerConfig.geminiApiKey || (typeof process !== 'undefined' ? (process.env as Record<string, string>).API_KEY : '') || '';
-        cachedProvider = new GeminiProvider(apiKey);
-        console.info('Using Gemini provider');
-        break;
+  } else if (providerConfig.provider === 'ollama') {
+    // Check if it's Ollama Cloud (ollama.com)
+    if (providerConfig.ollamaBaseUrl.includes('ollama.com')) {
+      cachedProvider = new OllamaCloudProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel, providerConfig.ollamaApiKey);
+      console.info(`Using Ollama Cloud provider: ${providerConfig.ollamaBaseUrl} with model ${providerConfig.ollamaModel}`);
+    } else {
+      cachedProvider = new OllamaProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel, providerConfig.ollamaApiKey);
+      console.info(`Using Ollama provider: ${providerConfig.ollamaBaseUrl} with model ${providerConfig.ollamaModel}`);
     }
+  } else {
+    // Default to Gemini
+    const apiKey = providerConfig.geminiApiKey || '';
+    cachedProvider = new GeminiProvider(apiKey);
+    console.info('Using Gemini provider');
   }
 
   return cachedProvider;
@@ -521,18 +609,20 @@ export async function initializeAIProvider(): Promise<AIProvider> {
   if (config.backendUrl) {
     cachedProvider = new BackendProvider(config.backendUrl);
     console.info(`Using backend provider from runtime config: ${config.backendUrl}`);
-  } else {
-    switch (config.provider) {
-      case 'ollama':
-        cachedProvider = new OllamaProvider(config.ollamaBaseUrl || 'http://localhost:11434', config.ollamaModel || 'llama3.2', config.ollamaApiKey);
-        console.info(`Using Ollama provider from runtime config: ${config.ollamaBaseUrl} with model ${config.ollamaModel}`);
-        break;
-      case 'gemini':
-      default:
-        cachedProvider = new GeminiProvider(config.geminiApiKey || '');
-        console.info('Using Gemini provider from runtime config');
-        break;
+  } else if (config.provider === 'ollama') {
+    // Check if it's Ollama Cloud (ollama.com)
+    const ollamaUrl = config.ollamaBaseUrl || 'http://localhost:11434';
+    if (ollamaUrl.includes('ollama.com')) {
+      cachedProvider = new OllamaCloudProvider(ollamaUrl, config.ollamaModel || 'llama3.2', config.ollamaApiKey);
+      console.info(`Using Ollama Cloud from runtime config: ${ollamaUrl} with model ${config.ollamaModel}`);
+    } else {
+      cachedProvider = new OllamaProvider(ollamaUrl, config.ollamaModel || 'llama3.2', config.ollamaApiKey);
+      console.info(`Using Ollama provider from runtime config: ${ollamaUrl} with model ${config.ollamaModel}`);
     }
+  } else {
+    // Default to Gemini
+    cachedProvider = new GeminiProvider(config.geminiApiKey || '');
+    console.info('Using Gemini provider from runtime config');
   }
 
   return cachedProvider;
