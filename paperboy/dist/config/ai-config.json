@@ -1,7 +1,7 @@
 {
-  "provider": "ollama",
+  "provider": "gemini",
   "ollamaBaseUrl": "http://localhost:11434",
   "ollamaModel": "llama3.2",
   "ollamaApiKey": "",
-  "backendUrl": "http://localhost:4000"
+  "backendUrl": ""
 }
