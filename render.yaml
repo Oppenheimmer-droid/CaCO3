@@ -9,12 +9,23 @@ services:
     region: oregon
     rootDir: paperboy
     buildCommand: |
+      echo "=== Starting build ==="
+      echo "Cleaning any existing dist..."
+      rm -rf dist
+      echo "Installing dependencies..."
       npm install
+      echo "Running production build..."
       npm run build
-      echo "Build completed. Checking dist..."
-      ls -la dist/ || echo "ERROR: dist not found"
+      echo "Verifying build output..."
+      if [ ! -f "dist/index.html" ]; then
+        echo "ERROR: dist/index.html not found after build!"
+        exit 1
+      fi
+      echo "dist/index.html found:"
+      ls -la dist/
+      echo "Installing server dependencies..."
       cd server && npm install
-      echo "Server dependencies installed"
+      echo "=== Build complete ==="
     startCommand: node server/server.js
     healthCheckPath: /
     envVars:
