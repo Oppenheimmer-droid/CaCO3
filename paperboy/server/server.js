@@ -65,9 +65,14 @@ app.post('/api/generate', async (req, res) => {
         if (process.env.OLLAMA_BASE_URL || process.env.OLLAMA_MODEL) {
           const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
           const ollamaModel = process.env.OLLAMA_MODEL || 'llama3.2';
+          const ollamaApiKey = process.env.OLLAMA_API_KEY || '';
+          const headers = { 'Content-Type': 'application/json' };
+          if (ollamaApiKey) {
+            headers.Authorization = `Bearer ${ollamaApiKey}`;
+          }
           const response = await fetch(`${ollamaBaseUrl.replace(/\/$/, '')}/api/generate`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({ model: ollamaModel, prompt, stream: false, options: { temperature: 0.7, ...(options || {}) } })
           });
           const data = await response.json();
@@ -79,9 +84,14 @@ app.post('/api/generate', async (req, res) => {
 
     const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
     const ollamaModel = process.env.OLLAMA_MODEL || 'llama3.2';
+    const ollamaApiKey = process.env.OLLAMA_API_KEY || '';
+    const headers = { 'Content-Type': 'application/json' };
+    if (ollamaApiKey) {
+      headers.Authorization = `Bearer ${ollamaApiKey}`;
+    }
     const response = await fetch(`${ollamaBaseUrl.replace(/\/$/, '')}/api/generate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ model: ollamaModel, prompt, stream: false, options: { temperature: 0.7, ...(options || {}) } })
     });
 
