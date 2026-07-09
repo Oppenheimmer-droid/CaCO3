@@ -4,7 +4,14 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
+    
+    // Para GitHub Pages: /CaCO3/ (o el base path del repositorio)
+    // Para Render/producción: / (raíz)
+    const isGitHubPages = env.GITHUB_PAGES === 'true';
+    const base = isGitHubPages ? '/CaCO3/' : '/';
+    
     return {
+      base,
       server: {
         port: 3000,
         host: '0.0.0.0',
