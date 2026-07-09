@@ -1,9 +1,6 @@
 # Paperboy - Render Blueprint
 # Despliegue completo con frontend React y backend Express
 
-envVars:
-  - fromGroup: paperboy-secrets
-
 services:
   - type: web
     name: paperboy
@@ -14,6 +11,7 @@ services:
     startCommand: "npm start"
     healthCheckPath: /
     envVars:
+      - fromGroup: paperboy-secrets
       - key: NODE_ENV
         value: production
       - key: PORT
@@ -26,7 +24,3 @@ services:
         value: fal
       - key: FAL_MODEL
         value: fal-ai/flux-pro
-      - key: GROQ_API_KEY
-        sync: false
-      - key: FAL_API_KEY
-        sync: false
