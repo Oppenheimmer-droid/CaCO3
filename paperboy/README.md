@@ -135,7 +135,7 @@ Para GitHub Pages, el flujo recomendado es:
 
 ## Despliegue en Render
 
-El proyecto está configurado para desplegarse en [Render](https://render.com/) usando el blueprint `render.yaml`.
+El proyecto está configurado para desplegarse en [Render](https://render.com/) usando el blueprint [`render.yaml`](render.yaml) en la raíz del repositorio.
 
 ### Pasos para desplegar:
 
