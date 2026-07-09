@@ -92,10 +92,24 @@ npm run preview  # Previsualiza la build de producción
 - **Generación de cómics**: Analiza texto y genera 8 viñetas con imágenes
 - **Auto-generación**: Genera secuencias de imágenes automáticas
 - **Edición inline**: Edita textos y regenera imágenes individualmente
-- **Vista del edificio 13 Rue del Percebe**: Réplica interactiva
+- **Vista del edificio 13 Rue del Percebe**: Réplica interactiva con fachada configurable por celdas
 - **Exportación**: PNG, PDF, Slides para LinkedIn, ZIP para X/Twitter
 - **Importación**: Soporta archivos .txt, .pdf y audio
 - **Autoguardado**: Guarda el progreso automáticamente en localStorage
+
+## Configuración de la fachada
+
+Cada celda de la fachada puede recibir una URL de imagen propia. Para cargar tus imágenes, abre una celda y pega la URL en el campo de imagen o usa el JSON equivalente de ejemplo:
+
+```json
+{
+  "azotea_buhardilla": "https://example.com/mi-imagen.jpg",
+  "piso1_izq": "https://example.com/piso-1.jpg",
+  "porteria": "https://example.com/porteria.jpg"
+}
+```
+
+Si una celda no tiene imagen, la aplicación muestra un placeholder neutro y sigue siendo editable desde el lightbox.
 
 ## Seguridad en Generación de Imágenes
 

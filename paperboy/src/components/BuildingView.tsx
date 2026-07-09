@@ -1,8 +1,10 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { PanelData, CustomRoomData, RoomData } from '../types';
-import { defaultRooms, ROOM_ORDER } from '../constants';
+import { defaultRooms } from '../constants';
 import { DefaultRoomIllustration } from './DefaultRoomIllustration';
+import { FacadeCell } from './FacadeCell';
 import { exportBuildingPng, exportBuildingPdf } from '../services/exportService';
+import { createFacadeCellMap, DEFAULT_FACADE_CELL_LAYOUT } from '../utils/facadeConfig';
 
 interface BuildingViewProps {
   panels: PanelData[];
@@ -29,10 +31,17 @@ export const BuildingView: React.FC<BuildingViewProps> = ({
   onLoadingMessageChange,
   onError
 }) => {
+  const facadeCells = useMemo(() => {
+    const cellConfig = Object.fromEntries(
+      DEFAULT_FACADE_CELL_LAYOUT.map((cell) => [cell.id, roomCustomizations[cell.roomId]?.imageUrl])
+    );
+    return createFacadeCellMap(cellConfig);
+  }, [roomCustomizations]);
+
   const getRoomData = useCallback((roomId: string): RoomData => {
     const custom = roomCustomizations[roomId];
     const base = defaultRooms[roomId];
-    
+
     if (!base) {
       throw new Error(`Room ${roomId} not found`);
     }
@@ -69,8 +78,8 @@ export const BuildingView: React.FC<BuildingViewProps> = ({
     try {
       await exportBuildingPng('building-container-export');
     } catch (err) {
-      console.error("Error exporting building PNG:", err);
-      onError("Hubo un error al exportar la imagen del edificio.");
+      console.error('Error exporting building PNG:', err);
+      onError('Hubo un error al exportar la imagen del edificio.');
     } finally {
       onExportingChange(false);
       onLoadingMessageChange('');
@@ -83,65 +92,29 @@ export const BuildingView: React.FC<BuildingViewProps> = ({
     try {
       await exportBuildingPdf('building-container-export');
     } catch (err) {
-      console.error("Error exporting building PDF:", err);
-      onError("Hubo un error al exportar el PDF del edificio.");
+      console.error('Error exporting building PDF:', err);
+      onError('Hubo un error al exportar el PDF del edificio.');
     } finally {
       onExportingChange(false);
       onLoadingMessageChange('');
     }
   };
 
-  const renderRoom = (roomId: string) => {
-    const r = getRoomData(roomId);
+  const renderFacadeCell = (cellId: string) => {
+    const cell = facadeCells[cellId];
+    if (!cell) return null;
+
+    const room = getRoomData(cell.roomId);
     return (
-      <div
-        onClick={() => onRoomClick(roomId)}
-        style={{
-          backgroundColor: r.bgColor,
-          border: '4px solid #000000',
-          borderRadius: '4px',
-          padding: '10px',
-          minHeight: '160px',
-          cursor: 'pointer',
-          transition: 'transform 0.15s ease',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          boxShadow: 'inset 0 0 10px rgba(0,0,0,0.1)'
-        }}
-        className="hover:scale-[1.01] hover:border-emerald-500 hover:shadow-lg"
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #000000', paddingBottom: '3px', marginBottom: '6px' }}>
-          <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#000000', textTransform: 'uppercase' }}>
-            {r.name.split('(')[0].trim()}
-          </span>
-          <span style={{ fontSize: '10px', color: '#4b5563', fontWeight: 'bold' }}>
-            {r.name.includes('(') ? r.name.match(/\(([^)]+)\)/)?.[1] : ''}
-          </span>
-        </div>
-        <div style={{ flex: 1, display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <div style={{ width: '50px', height: '50px', flexShrink: 0 }}>
-            {r.imageUrl ? (
-              <img
-                src={r.imageUrl}
-                alt={r.title}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', border: '2px solid #000', borderRadius: '3px' }}
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <DefaultRoomIllustration type={r.defaultImage} />
-            )}
-          </div>
-          <div style={{ flex: 1 }}>
-            <h4 style={{ margin: '0 0 3px 0', fontSize: '12px', fontWeight: 'bold', color: '#000000' }}>
-              {r.title}
-            </h4>
-            <p style={{ margin: 0, fontSize: '10px', color: '#1f2937', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: '1.2' }}>
-              {r.script}
-            </p>
-          </div>
-        </div>
-      </div>
+      <FacadeCell
+        key={cell.id}
+        label={cell.label}
+        description={cell.description || ''}
+        room={room}
+        onClick={onRoomClick}
+        imageUrl={cell.imageUrl || room.imageUrl}
+        placeholder={cell.placeholder}
+      />
     );
   };
 
@@ -186,7 +159,7 @@ export const BuildingView: React.FC<BuildingViewProps> = ({
       >
         {floor === 0 ? 'B' : `${floor}º`}
       </button>
-      
+
       {floor > 0 && (
         <>
           <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#facc15', textAlign: 'center', marginTop: '20px' }}>
@@ -210,7 +183,7 @@ export const BuildingView: React.FC<BuildingViewProps> = ({
               <div style={{ width: '100%', height: '4px', backgroundColor: '#eab308' }}></div>
               <span style={{ fontSize: '10px', color: '#fff', fontWeight: 'bold', marginTop: '4px' }}>🛎️ {floor}º</span>
               <div style={{ width: '32px', height: '24px', border: '1px solid #f59e0b', marginTop: '4px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
-                {[0, 1, 2].map(i => <div key={i} style={{ borderRight: '1px solid #f59e0b' }} />)}
+                {[0, 1, 2].map((i) => <div key={i} style={{ borderRight: '1px solid #f59e0b' }} />)}
               </div>
             </div>
           )}
@@ -266,7 +239,6 @@ export const BuildingView: React.FC<BuildingViewProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', alignItems: 'center', gap: '1.5rem', marginTop: '1rem' }}>
-      {/* Building Controls */}
       <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center', width: '100%' }}>
         <button
           className="export-button"
@@ -294,18 +266,15 @@ export const BuildingView: React.FC<BuildingViewProps> = ({
       </div>
 
       <p style={{ fontSize: '0.85rem', color: '#9ca3af', fontStyle: 'italic', margin: 0, textAlign: 'center' }}>
-        💡 ¡Haz clic en cualquier habitación para expandirla, cambiar su texto, vincular otra viñeta o cargar tu propia imagen!
+        💡 Haz clic en cualquier celda para abrirla como viñeta independiente y cargar tu imagen propia.
       </p>
 
-      {/* Elevator Indicator */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: 'var(--surface-color)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}>
         <span>⚙️</span>
         <span>Piso actual: <strong>{activeElevatorFloor === 0 ? 'Bajo' : `${activeElevatorFloor}º`}</strong></span>
       </div>
 
-      {/* Scrollable Wrapper */}
       <div style={{ width: '100%', overflowX: 'auto', paddingBottom: '1rem' }}>
-        {/* Building Container */}
         <div
           id="building-container-export"
           style={{
@@ -320,7 +289,6 @@ export const BuildingView: React.FC<BuildingViewProps> = ({
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
           }}
         >
-          {/* Header Title */}
           <div style={{
             backgroundColor: '#facc15',
             border: '4px solid #000000',
@@ -340,43 +308,37 @@ export const BuildingView: React.FC<BuildingViewProps> = ({
             </div>
           </div>
 
-          {/* Building Grid */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 110px 1fr',
+            gridTemplateColumns: 'minmax(0, 1fr) 110px minmax(0, 1fr)',
+            gridTemplateRows: 'repeat(5, minmax(140px, 1fr))',
             gap: '8px',
             backgroundColor: '#1f2937',
             padding: '8px',
             borderRadius: '8px',
             border: '5px solid #000000'
           }}>
-            {/* Level 4: Roof */}
-            {renderRoom('buhardilla')}
+            {renderFacadeCell('azotea_buhardilla')}
             {renderElevatorShaft(4)}
-            {renderRoom('tejado')}
+            {renderFacadeCell('azotea_tejado')}
 
-            {/* Level 3 */}
-            {renderRoom('piso3_izq')}
+            {renderFacadeCell('piso3_izq')}
             {renderElevatorShaft(3)}
-            {renderRoom('piso3_der')}
+            {renderFacadeCell('piso3_der')}
 
-            {/* Level 2 */}
-            {renderRoom('piso2_izq')}
+            {renderFacadeCell('piso2_izq')}
             {renderElevatorShaft(2)}
-            {renderRoom('piso2_der')}
+            {renderFacadeCell('piso2_der')}
 
-            {/* Level 1 */}
-            {renderRoom('piso1_izq')}
+            {renderFacadeCell('piso1_izq')}
             {renderElevatorShaft(1)}
-            {renderRoom('piso1_der')}
+            {renderFacadeCell('piso1_der')}
 
-            {/* Level 0: Ground Floor */}
-            {renderRoom('tienda')}
+            {renderFacadeCell('planta_baja_izq')}
             {renderElevatorShaft(0, true)}
-            {renderRoom('porteria')}
+            {renderFacadeCell('porteria')}
           </div>
 
-          {/* Street / Sewer */}
           <div style={{
             marginTop: '10px',
             borderTop: '6px solid #000000',
@@ -388,7 +350,6 @@ export const BuildingView: React.FC<BuildingViewProps> = ({
             alignItems: 'center',
             position: 'relative'
           }}>
-            {/* Street Lamp */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'absolute', left: '25px', bottom: '12px' }}>
               <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: '#fef08a', border: '2px solid #000', boxShadow: '0 0 10px #fef08a' }}></div>
               <div style={{ width: '4px', height: '55px', backgroundColor: '#111827', borderLeft: '1px solid #4b5563' }}></div>
@@ -398,7 +359,6 @@ export const BuildingView: React.FC<BuildingViewProps> = ({
               RUE DEL PERCEBE • ACERA SUR
             </div>
 
-            {/* Sewer */}
             {(() => {
               const r = getRoomData('alcantarilla');
               return (

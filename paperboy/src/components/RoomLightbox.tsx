@@ -96,22 +96,33 @@ export const RoomLightbox: React.FC<RoomLightboxProps> = ({
         <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', maxHeight: '70vh', overflowY: 'auto', textAlign: 'left' }}>
           
           {/* Visual Preview */}
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
-            <div style={{ width: '80px', height: '80px', flexShrink: 0, backgroundColor: '#fef08a', border: '2px solid #000', borderRadius: '6px', overflow: 'hidden' }}>
-              {roomData.imageUrl ? (
-                <img src={roomData.imageUrl} alt={roomData.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} referrerPolicy="no-referrer" />
-              ) : (
-                <DefaultRoomIllustration type="empty" />
-              )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', backgroundColor: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <div style={{ width: '80px', height: '80px', flexShrink: 0, backgroundColor: '#fef08a', border: '2px solid #000', borderRadius: '6px', overflow: 'hidden' }}>
+                {roomData.imageUrl ? (
+                  <img src={roomData.imageUrl} alt={roomData.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} referrerPolicy="no-referrer" />
+                ) : (
+                  <DefaultRoomIllustration type="empty" />
+                )}
+              </div>
+              <div>
+                <h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--primary-color)' }}>
+                  Previsualización en la Rue
+                </h4>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#aaa', fontStyle: 'italic' }}>
+                  "{roomData.script || 'Sin texto'}"
+                </p>
+              </div>
             </div>
-            <div>
-              <h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--primary-color)' }}>
-                Previsualización en la Rue
-              </h4>
-              <p style={{ margin: 0, fontSize: '0.8rem', color: '#aaa', fontStyle: 'italic' }}>
-                "{roomData.script || 'Sin texto'}"
-              </p>
-            </div>
+            {roomData.imageUrl ? (
+              <div style={{ border: '2px solid #000', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#fff' }}>
+                <img src={roomData.imageUrl} alt={roomData.title} style={{ width: '100%', height: '220px', objectFit: 'cover', display: 'block' }} referrerPolicy="no-referrer" />
+              </div>
+            ) : (
+              <div style={{ border: '2px dashed #000', borderRadius: '8px', padding: '1rem', textAlign: 'center', fontSize: '0.85rem', color: '#666' }}>
+                Sin imagen asignada. El placeholder neutro se mostrará en la fachada hasta que cargues una URL propia.
+              </div>
+            )}
           </div>
 
           {/* Title Input */}
