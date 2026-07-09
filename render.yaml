@@ -1,6 +1,9 @@
 # Paperboy - Render Blueprint
 # Despliegue completo con frontend React y backend Express
 
+envVars:
+  - fromGroup: paperboy-secrets
+
 services:
   - type: web
     name: paperboy
@@ -21,11 +24,11 @@ services:
         value: https://ollama.com/api
       - key: OLLAMA_MODEL
         value: llama3
-      - key: OLLAMA_API_KEY
-        sync: false
       - key: IMAGE_PROVIDER
         value: fal
-      - key: FAL_API_KEY
-        sync: false
       - key: FAL_MODEL
         value: fal-ai/flux-pro
+      - key: OLLAMA_API_KEY
+        sync: false
+      - key: FAL_API_KEY
+        sync: false

@@ -1,0 +1,31 @@
+# Environment variables (contains API keys)
+.env
+.env.local
+.env.production
+
+# Dependencies
+node_modules/
+paperboy/node_modules/
+paperboy/server/node_modules/
+
+# Build outputs
+dist/
+paperboy/dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Cache
+.cache/
+*.tsbuildinfo
