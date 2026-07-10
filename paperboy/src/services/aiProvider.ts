@@ -655,14 +655,13 @@ export function getAIProvider(): AIProvider {
     backendUrl: effectiveBackendUrl
   };
 
-  // En producción usa backend proxy, en desarrollo usa Groq directamente si hay key
-  if (effectiveBackendUrl) {
+  // Priority: Groq (texto) + FalImageProvider (imágenes)
+  if (providerConfig.groqApiKey) {
+    cachedProvider = new GroqProvider(providerConfig.groqApiKey, providerConfig.groqModel);
+    console.info(`Using Groq for text with model ${providerConfig.groqModel}`);
+  } else if (providerConfig.backendUrl && effectiveBackendUrl) {
     cachedProvider = new BackendProvider(effectiveBackendUrl);
     console.info(`Using backend proxy: ${effectiveBackendUrl}`);
-  } else if (providerConfig.groqApiKey) {
-    // Solo usa Groq directamente en desarrollo con key configurada
-    cachedProvider = new GroqProvider(providerConfig.groqApiKey, providerConfig.groqModel);
-    console.info(`Using Groq provider with model ${providerConfig.groqModel}`);
   } else if (providerConfig.provider === 'ollama' && providerConfig.ollamaBaseUrl) {
     if (providerConfig.ollamaBaseUrl.includes('ollama.com')) {
       cachedProvider = new OllamaCloudProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel, providerConfig.ollamaApiKey);

@@ -14,7 +14,10 @@ export default defineConfig(({ mode }) => {
     const defaultGroqModel = 'llama-3.3-70b-versatile';
     const defaultImageProvider = 'fal';
     const defaultFalModel = 'fal-ai/flux-pro';
-    const defaultBackendUrl = isGitHubPages ? 'http://localhost:4000' : 'http://localhost:4000';
+    
+    // Keys for production - estos vienen de Render Environment Variables
+    const groqApiKey = env.GROQ_API_KEY || '';
+    const falApiKey = env.FAL_API_KEY || '';
     
     return {
       base,
@@ -25,13 +28,13 @@ export default defineConfig(({ mode }) => {
       plugins: [react()],
       define: {
         'import.meta.env.VITE_AI_PROVIDER': JSON.stringify(env.AI_PROVIDER || 'groq'),
-        'import.meta.env.VITE_GROQ_API_KEY': JSON.stringify(env.GROQ_API_KEY || ''),
+        'import.meta.env.VITE_GROQ_API_KEY': JSON.stringify(groqApiKey),
         'import.meta.env.VITE_GROQ_MODEL': JSON.stringify(env.GROQ_MODEL || defaultGroqModel),
         'import.meta.env.VITE_OLLAMA_BASE_URL': JSON.stringify(env.OLLAMA_BASE_URL || 'https://ollama.com/api'),
         'import.meta.env.VITE_OLLAMA_MODEL': JSON.stringify(env.OLLAMA_MODEL || 'llama3'),
         'import.meta.env.VITE_OLLAMA_API_KEY': JSON.stringify(env.OLLAMA_API_KEY || ''),
         'import.meta.env.VITE_IMAGE_PROVIDER': JSON.stringify(env.IMAGE_PROVIDER || defaultImageProvider),
-        'import.meta.env.VITE_FAL_API_KEY': JSON.stringify(env.FAL_API_KEY || ''),
+        'import.meta.env.VITE_FAL_API_KEY': JSON.stringify(falApiKey),
         'import.meta.env.VITE_FAL_MODEL': JSON.stringify(env.FAL_MODEL || defaultFalModel)
       },
       resolve: {
