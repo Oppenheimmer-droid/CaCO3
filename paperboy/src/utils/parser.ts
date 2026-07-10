@@ -93,68 +93,59 @@ export interface RawPanelData {
 }
 
 export function parseComicPanelData(text: string): ParseResult<RawPanelData[]> {
-  // Try direct parse first
-  let result = parseJSON<RawPanelData[]>(text, 'array of panel objects');
-
-  if (!result.success) {
-    // Try parsing as object with panels/key
-    const objResult = parseJSON<Record<string, unknown>>(text, 'object');
-    if (objResult.success) {
-      const obj = objResult.data!;
-      // Look for array in common keys
-      const arrayKey = 'panels' in obj ? 'panels' : 
-                       'data' in obj ? 'data' : 
-                       'comics' in obj ? 'comics' : 
-                       'slides' in obj ? 'slides' : null;
+  let rawData: unknown = null;
+  
+  // Strategy 1: Direct parse as array
+  const directResult = parseJSON<RawPanelData[]>(text);
+  if (directResult.success && Array.isArray(directResult.data)) {
+    rawData = directResult.data;
+  } else {
+    // Strategy 2: Parse as object and extract panels
+    const objResult = parseJSON<Record<string, unknown>>(text);
+    if (objResult.success && objResult.data) {
+      const obj = objResult.data;
       
-      if (arrayKey) {
-        const potentialArray = obj[arrayKey];
-        if (Array.isArray(potentialArray)) {
-          result = { success: true, data: potentialArray as RawPanelData[] };
+      // Look for panels array in common keys
+      const keysToTry = ['panels', 'data', 'comics', 'slides', 'items', 'results'];
+      for (const key of keysToTry) {
+        if (key in obj && Array.isArray(obj[key])) {
+          rawData = obj[key];
+          break;
         }
       }
     }
   }
 
-  if (!result.success) {
-    return result;
-  }
-
-  // Validate structure
-  const data = result.data!;
-  if (!Array.isArray(data)) {
+  if (!rawData || !Array.isArray(rawData)) {
     return {
       success: false,
-      error: `Expected array of panels, got ${typeof data}`
+      error: 'Could not parse comic panels - expected array'
     };
   }
 
   // Validate each panel has required fields
-  for (let i = 0; i < data.length; i++) {
-    const panel = data[i];
+  const validatedPanels: RawPanelData[] = [];
+  for (let i = 0; i < rawData.length; i++) {
+    const panel = rawData[i] as Record<string, unknown>;
     if (typeof panel !== 'object' || panel === null) {
-      return {
-        success: false,
-        error: `Panel ${i + 1} is not a valid object`
-      };
+      return { success: false, error: `Panel ${i + 1} is not a valid object` };
     }
 
-    const typedPanel = panel as Record<string, unknown>;
-    if (typeof typedPanel.title !== 'string') {
-      return {
-        success: false,
-        error: `Panel ${i + 1} is missing valid "title" field`
-      };
+    const title = typeof panel.title === 'string' ? panel.title : 
+                  typeof panel.name === 'string' ? panel.name : '';
+    const script = typeof panel.script === 'string' ? panel.script : 
+                   typeof panel.description === 'string' ? panel.description : '';
+    const explanation = typeof panel.explanation === 'string' ? panel.explanation : '';
+    const imagePrompt = typeof panel.imagePrompt === 'string' ? panel.imagePrompt : '';
+
+    if (!title && !script) {
+      return { success: false, error: `Panel ${i + 1} is missing title or script` };
     }
-    if (typeof typedPanel.script !== 'string') {
-      return {
-        success: false,
-        error: `Panel ${i + 1} is missing valid "script" field`
-      };
-    }
+
+    validatedPanels.push({ title, script, explanation, imagePrompt });
   }
 
-  return { success: true, data };
+  return { success: true, data: validatedPanels };
 }
 
 /**
