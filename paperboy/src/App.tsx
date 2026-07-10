@@ -21,6 +21,7 @@ import {
   exportGalleryAsPdf
 } from './services/exportService';
 import { defaultScript } from './constants/defaultScript';
+import { defaultRooms } from './constants';
 
 const App: React.FC = () => {
   const {
@@ -304,10 +305,7 @@ const App: React.FC = () => {
   // Room lightbox handlers
   const openRoomLightbox = useCallback((roomId: string) => {
     const custom = state.building.roomCustomizations[roomId];
-    const base = (() => {
-      const { defaultRooms } = require('./constants');
-      return defaultRooms[roomId];
-    })();
+    const base = defaultRooms[roomId];
 
     if (!base) return;
 
