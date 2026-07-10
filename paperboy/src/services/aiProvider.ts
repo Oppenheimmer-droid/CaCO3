@@ -327,8 +327,8 @@ class BackendProvider implements AIProvider {
   }
 
   async generateText(prompt: string, options?: TextGenerationOptions): Promise<TextGenerationResult> {
-    // Use Groq proxy endpoint
-    const result = await callBackendAI('/api/groq', { 
+    // resolveBackendUrl already adds /api if needed
+    const result = await callBackendAI('/groq', { 
       prompt, 
       model: options?.model || 'llama-3.3-70b-versatile',
       responseMimeType: options?.responseMimeType
@@ -337,8 +337,8 @@ class BackendProvider implements AIProvider {
   }
 
   async generateImage(prompt: string, options?: ImageGenerationOptions): Promise<ImageGenerationResult> {
-    // Use FAL.AI proxy endpoint
-    const result = await callBackendAI('/api/fal-image', { 
+    // resolveBackendUrl already adds /api if needed
+    const result = await callBackendAI('/fal-image', { 
       prompt, 
       aspectRatio: options?.aspectRatio || '1:1'
     }, this.baseUrl);
