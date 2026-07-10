@@ -197,14 +197,142 @@ app.post('/api/transcribe', async (req, res) => {
 // Endpoint para servir la configuración de IA dinámicamente
 app.get('/config/ai-config.json', (req, res) => {
   const config = {
-    provider: process.env.AI_PROVIDER || 'gemini',
+    provider: process.env.AI_PROVIDER || 'groq',
     geminiApiKey: process.env.GEMINI_API_KEY || '',
+    groqApiKey: process.env.GROQ_API_KEY || '',
+    groqModel: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
     ollamaBaseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
     ollamaModel: process.env.OLLAMA_MODEL || 'llama3',
     ollamaApiKey: process.env.OLLAMA_API_KEY || '',
-    backendUrl: ''
+    backendUrl: '',
+    falApiKey: process.env.FAL_API_KEY || '',
+    imageProvider: process.env.IMAGE_PROVIDER || 'fal'
   };
   res.json(config);
+});
+
+// ==================== GROQ PROXY (texto) ====================
+app.post('/api/groq', async (req, res) => {
+  const { prompt, model, responseMimeType } = req.body || {};
+  
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: 'GROQ_API_KEY is not configured on server' });
+  }
+
+  if (!prompt) {
+    return res.status(400).json({ error: 'Prompt is required' });
+  }
+
+  try {
+    const body = {
+      model: model || 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: prompt }],
+      stream: false
+    };
+    
+    if (responseMimeType === 'application/json') {
+      body.response_format = { type: 'json_object' };
+    }
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      return res.status(response.status).json({ error: `Groq error: ${response.status} - ${errorBody}` });
+    }
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content || '';
+    return res.json({ text });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'Groq proxy failed' });
+  }
+});
+
+// ==================== FAL.AI PROXY (imágenes) ====================
+app.post('/api/fal-image', async (req, res) => {
+  const { prompt, aspectRatio } = req.body || {};
+  
+  const apiKey = process.env.FAL_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: 'FAL_API_KEY is not configured on server' });
+  }
+
+  if (!prompt) {
+    return res.status(400).json({ error: 'Prompt is required' });
+  }
+
+  const sizeMap = {
+    '1:1': 'square_1_1',
+    '4:3': 'landscape_4_3',
+    '16:9': 'landscape_16_9',
+    '9:16': 'portrait_9_16'
+  };
+  const imageSize = sizeMap[aspectRatio] || 'square_1_1';
+
+  try {
+    // Submit request
+    const submitResponse = await fetch('https://queue.fal.run/fal-ai/flux-pro', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Key ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        prompt,
+        image_size: imageSize,
+        num_images: 1
+      })
+    });
+
+    if (!submitResponse.ok) {
+      const errorBody = await submitResponse.text();
+      return res.status(submitResponse.status).json({ error: `FAL.AI submit error: ${errorBody}` });
+    }
+
+    const { request_id } = await submitResponse.json();
+    
+    // Poll for result
+    const pollUrl = `https://queue.fal.run/fal-ai/flux-pro/requests/${request_id}`;
+    let attempts = 0;
+    const maxAttempts = 60;
+
+    while (attempts < maxAttempts) {
+      await new Promise(r => setTimeout(r, 2000));
+      
+      const statusResponse = await fetch(pollUrl, {
+        headers: { 'Authorization': `Key ${apiKey}` }
+      });
+      
+      const statusData = await statusResponse.json();
+      
+      if (statusData.status === 'completed' && statusData.images?.length > 0) {
+        const imageUrl = statusData.images[0].url;
+        const imageResponse = await fetch(imageUrl);
+        const imageBuffer = await imageResponse.arrayBuffer();
+        const base64 = Buffer.from(imageBuffer).toString('base64');
+        return res.json({ base64, mimeType: 'image/png' });
+      }
+      
+      if (statusData.status === 'failed') {
+        return res.status(500).json({ error: 'FAL.AI image generation failed' });
+      }
+      
+      attempts++;
+    }
+
+    return res.status(504).json({ error: 'FAL.AI timeout waiting for image' });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'FAL.AI proxy failed' });
+  }
 });
 
 // Health check endpoint

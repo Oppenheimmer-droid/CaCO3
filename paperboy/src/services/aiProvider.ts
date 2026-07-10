@@ -327,12 +327,21 @@ class BackendProvider implements AIProvider {
   }
 
   async generateText(prompt: string, options?: TextGenerationOptions): Promise<TextGenerationResult> {
-    const result = await callBackendAI('/generate', { prompt, provider: 'backend', options }, this.baseUrl);
+    // Use Groq proxy endpoint
+    const result = await callBackendAI('/api/groq', { 
+      prompt, 
+      model: options?.model || 'llama-3.3-70b-versatile',
+      responseMimeType: options?.responseMimeType
+    }, this.baseUrl);
     return { text: result.text || '' };
   }
 
   async generateImage(prompt: string, options?: ImageGenerationOptions): Promise<ImageGenerationResult> {
-    const result = await callBackendAI('/generate-image', { prompt, options }, this.baseUrl);
+    // Use FAL.AI proxy endpoint
+    const result = await callBackendAI('/api/fal-image', { 
+      prompt, 
+      aspectRatio: options?.aspectRatio || '1:1'
+    }, this.baseUrl);
     return {
       base64: result.base64 || '',
       mimeType: result.mimeType || 'image/png'
@@ -626,6 +635,12 @@ export function getAIProvider(): AIProvider {
     return cachedProvider;
   }
 
+  // Check if backend proxy is available (production)
+  const isProduction = import.meta.env.PROD || (ENV_BACKEND_URL && ENV_BACKEND_URL !== 'http://localhost:4000');
+  
+  // In production without explicit backend URL, use current origin
+  const effectiveBackendUrl = ENV_BACKEND_URL || (typeof window !== 'undefined' && isProduction ? window.location.origin : '');
+  
   const providerConfig = {
     provider: ENV_AI_PROVIDER,
     geminiApiKey: ENV_GEMINI_API_KEY,
@@ -634,14 +649,20 @@ export function getAIProvider(): AIProvider {
     ollamaApiKey: ENV_OLLAMA_API_KEY,
     groqApiKey: ENV_GROQ_API_KEY,
     groqModel: ENV_GROQ_MODEL,
-    backendUrl: ENV_BACKEND_URL !== 'http://localhost:4000' ? ENV_BACKEND_URL : ''
+    backendUrl: effectiveBackendUrl
   };
 
-  // Groq provider (free, fast)
-  if (providerConfig.provider === 'groq' || (!providerConfig.geminiApiKey && !providerConfig.ollamaBaseUrl)) {
+  // Use backend proxy in production (API keys are on server)
+  if (isProduction && effectiveBackendUrl) {
+    cachedProvider = new BackendProvider(effectiveBackendUrl);
+    console.info(`Using backend proxy: ${effectiveBackendUrl}`);
+  }
+  // Groq provider (free, fast) - use directly if API key is available
+  else if (providerConfig.groqApiKey && providerConfig.provider === 'groq') {
     cachedProvider = new GroqProvider(providerConfig.groqApiKey, providerConfig.groqModel);
     console.info(`Using Groq provider with model ${providerConfig.groqModel}`);
-  } else if (providerConfig.provider === 'ollama' && providerConfig.ollamaBaseUrl) {
+  }
+  else if (providerConfig.provider === 'ollama' && providerConfig.ollamaBaseUrl) {
     if (providerConfig.ollamaBaseUrl.includes('ollama.com')) {
       cachedProvider = new OllamaCloudProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel, providerConfig.ollamaApiKey);
       console.info(`Using Ollama Cloud provider: ${providerConfig.ollamaBaseUrl} with model ${providerConfig.ollamaModel}`);
@@ -649,9 +670,9 @@ export function getAIProvider(): AIProvider {
       cachedProvider = new OllamaProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel, providerConfig.ollamaApiKey);
       console.info(`Using Ollama provider: ${providerConfig.ollamaBaseUrl} with model ${providerConfig.ollamaModel}`);
     }
-  } else if (providerConfig.backendUrl) {
-    cachedProvider = new BackendProvider(providerConfig.backendUrl);
-    console.info(`Using backend provider: ${providerConfig.backendUrl}`);
+  } else if (effectiveBackendUrl) {
+    cachedProvider = new BackendProvider(effectiveBackendUrl);
+    console.info(`Using backend provider: ${effectiveBackendUrl}`);
   } else {
     const apiKey = providerConfig.geminiApiKey || '';
     cachedProvider = new GeminiProvider(apiKey);

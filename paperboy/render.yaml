@@ -1,5 +1,5 @@
 # Paperboy - Render Blueprint
-# Generador de cómics con IA
+# Generador de cómics con IA (backend + frontend)
 
 services:
   - type: web
@@ -18,16 +18,19 @@ services:
         value: production
       - key: PORT
         value: 10000
-      # Groq - IA de texto (gratis)
-      - key: AI_PROVIDER
-        value: groq
+      # El frontend usa BACKEND_URL para saber dónde está el proxy
+      # En producción será la misma URL del servicio
+      - key: BACKEND_URL
+        fromService:
+          type: web
+          name: paperboy
+          envVarKey: RENDER_EXTERNAL_URL
+      # Groq - IA de texto (gratis) - solo en el server
       - key: GROQ_API_KEY
         sync: false  # ⚠️ Configura en Render Dashboard
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
-      # FAL.AI - Generación de imágenes
-      - key: IMAGE_PROVIDER
-        value: fal
+      # FAL.AI - Generación de imágenes - solo en el server
       - key: FAL_API_KEY
         sync: false  # ⚠️ Configura en Render Dashboard
       - key: FAL_MODEL
