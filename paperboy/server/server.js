@@ -242,9 +242,7 @@ app.post('/api/groq', async (req, res) => {
       stream: false
     };
     
-    if (responseMimeType === 'application/json') {
-      body.response_format = { type: 'json_object' };
-    }
+    // Don't force json_object - let model return JSON array or object naturally
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
