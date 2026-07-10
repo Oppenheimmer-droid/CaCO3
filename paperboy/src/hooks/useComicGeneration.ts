@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { getImageProvider, FAL_API_KEY } from '../services/aiProvider';
+import { getAIProvider, getImageProvider, FAL_API_KEY } from '../services/aiProvider';
 import type { ImageProvider } from '../services/imageProvider';
 import { PanelData, AIProviderError } from '../types';
 import { parseComicPanelData, validatePanelCount, createProviderError } from '../utils/parser';
@@ -33,23 +33,24 @@ export interface UseComicGenerationReturn {
   ) => Promise<void>;
 }
 
-// Unified provider that uses FAL.AI for both text and images
-class FalUnifiedProvider {
-  private imageProvider: ImageProvider;
+// Unified provider that uses AI provider for text and FAL.AI for images
+class ComicProvider {
+  private textProvider: ReturnType<typeof getAIProvider>;
+  private imageProvider: ImageProvider | null;
 
-  constructor(imageProvider: ImageProvider) {
+  constructor(textProvider: ReturnType<typeof getAIProvider>, imageProvider: ImageProvider | null) {
+    this.textProvider = textProvider;
     this.imageProvider = imageProvider;
   }
 
   async generateText(prompt: string, options?: { responseMimeType?: string }): Promise<{ text: string }> {
-    // Use FAL.AI's generateText method
-    if ('generateText' in this.imageProvider && this.imageProvider.generateText) {
-      return this.imageProvider.generateText(prompt, options);
-    }
-    throw new Error('FAL.AI provider does not support text generation');
+    return this.textProvider.generateText(prompt, options);
   }
 
   async generateImage(prompt: string, options?: { aspectRatio?: '1:1' | '4:3' | '16:9' | '9:16' }): Promise<{ base64: string; mimeType: string }> {
+    if (!this.imageProvider) {
+      throw new Error('FAL.AI provider not configured');
+    }
     return this.imageProvider.generateImage(prompt, options);
   }
 }
@@ -62,18 +63,20 @@ export function useComicGeneration(): UseComicGenerationReturn {
     onError: (error: string) => void,
     onComplete: () => void
   ) => {
-    // Use FAL.AI for everything (text + images)
+    // Use AI provider for text (Groq, Gemini, etc.) and FAL.AI for images
+    const textProvider = getAIProvider();
     const imageProvider = getImageProvider('fal', FAL_API_KEY);
+    
     if (!imageProvider) {
       onError('FAL.AI provider not available. Please configure FAL_API_KEY.');
       return;
     }
     
-    const provider = new FalUnifiedProvider(imageProvider);
+    const provider = new ComicProvider(textProvider, imageProvider);
     const generatedPanels: PanelData[] = [];
 
     try {
-      // Step 1: Generate script and image prompts using FAL.AI
+      // Step 1: Generate script and image prompts using AI provider (Groq/Gemini)
       onProgress('Creando el guion y las ideas para las 8 viñetas...');
       
       const promptText = `${DEFAULT_SCRIPT_PROMPT}\n\nTexto original:\n\n${scriptText}`;
@@ -207,14 +210,15 @@ export function useComicGeneration(): UseComicGenerationReturn {
     onError: (error: string) => void,
     onCancel: () => void
   ) => {
-    // Use FAL.AI for everything
+    // Use AI provider for text and FAL.AI for images
+    const textProvider = getAIProvider();
     const imageProvider = getImageProvider('fal', FAL_API_KEY);
     if (!imageProvider) {
       onError('FAL.AI provider not available. Please configure FAL_API_KEY.');
       return;
     }
     
-    const provider = new FalUnifiedProvider(imageProvider);
+    const provider = new ComicProvider(textProvider, imageProvider);
     const panelToUpdateIndex = currentPanels.length - 1 - panelIndex;
     
     // Mark panel as regenerating

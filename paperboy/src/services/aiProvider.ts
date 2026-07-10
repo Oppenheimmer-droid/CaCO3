@@ -631,49 +631,14 @@ class FalProvider implements AIProvider {
   }
 
   async generateText(prompt: string, options?: TextGenerationOptions): Promise<TextGenerationResult> {
-    if (!this.apiKey) {
-      throw new AIProviderError('FAL_API_KEY is required for FalProvider', 'MISSING_API_KEY', 401, false);
-    }
-
-    // Use fal.ai's fast inference API for text generation
-    const response = await fetch('https://fast.lushor.cloud/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Key ${this.apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'deepseek-ai/DeepSeek-V3-0324',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 4096,
-        temperature: 0.7,
-        response_format: options?.responseMimeType === 'application/json' 
-          ? { type: 'json_object' }
-          : undefined
-      })
-    });
-
-    if (!response.ok) {
-      const errorBody = await response.text().catch(() => '');
-      throw new AIProviderError(
-        `FAL.AI text API error: ${response.status} - ${errorBody}`,
-        undefined,
-        response.status,
-        response.status === 429 || response.status >= 500
-      );
-    }
-
-    const data = await response.json() as Record<string, unknown>;
-    const choices = data.choices as Array<Record<string, unknown>> | undefined;
-    if (!choices || choices.length === 0) {
-      throw new AIProviderError('No response from FAL.AI API');
-    }
-    
-    const message = choices[0].message as Record<string, unknown> | undefined;
-    return {
-      text: (message?.content as string) || '',
-      rawResponse: data
-    };
+    // FAL.AI doesn't support text generation directly
+    // This is a stub - use GroqProvider or GeminiProvider for text
+    throw new AIProviderError(
+      'Text generation via FAL.AI is not supported. Use Groq or Gemini provider.',
+      'TEXT_GENERATION_UNSUPPORTED',
+      undefined,
+      false
+    );
   }
 
   async generateImage(prompt: string, options?: ImageGenerationOptions): Promise<ImageGenerationResult> {
@@ -784,13 +749,13 @@ export function getAIProvider(): AIProvider {
     backendUrl: ENV_BACKEND_URL !== 'http://localhost:4000' ? ENV_BACKEND_URL : ''
   };
 
-  // FAL.AI provider - unified text and image generation
-  if (providerConfig.provider === 'fal' || (!providerConfig.groqApiKey && !providerConfig.geminiApiKey && !providerConfig.ollamaBaseUrl)) {
-    cachedProvider = new FalProvider(providerConfig.falApiKey);
-    console.info('Using FAL.AI provider for text and images');
-  } else if (providerConfig.provider === 'groq') {
+  // Groq provider (free) for text - FAL.AI for images only
+  if (providerConfig.groqApiKey) {
     cachedProvider = new GroqProvider(providerConfig.groqApiKey, providerConfig.groqModel);
-    console.info(`Using Groq provider with model ${providerConfig.groqModel}`);
+    console.info(`Using Groq provider for text with model ${providerConfig.groqModel}`);
+  } else if (providerConfig.provider === 'gemini' && providerConfig.geminiApiKey) {
+    cachedProvider = new GeminiProvider(providerConfig.geminiApiKey);
+    console.info('Using Gemini provider for text');
   } else if (providerConfig.provider === 'ollama' && providerConfig.ollamaBaseUrl) {
     if (providerConfig.ollamaBaseUrl.includes('ollama.com')) {
       cachedProvider = new OllamaCloudProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel, providerConfig.ollamaApiKey);
@@ -817,13 +782,13 @@ export async function initializeAIProvider(): Promise<AIProvider> {
     return cachedProvider;
   }
 
-  // FAL.AI provider - unified text and image generation
-  if (config.provider === 'fal' || !config.groqApiKey) {
-    cachedProvider = new FalProvider(config.falApiKey || ENV_FAL_API_KEY);
-    console.info('Using FAL.AI provider from runtime config');
-  } else if (config.provider === 'groq') {
+  // Groq provider (free) for text - FAL.AI for images only
+  if (config.groqApiKey) {
     cachedProvider = new GroqProvider(config.groqApiKey, config.groqModel || ENV_GROQ_MODEL);
     console.info(`Using Groq provider from runtime config with model ${config.groqModel || ENV_GROQ_MODEL}`);
+  } else if (config.geminiApiKey) {
+    cachedProvider = new GeminiProvider(config.geminiApiKey);
+    console.info('Using Gemini provider from runtime config');
   } else if (config.provider === 'ollama' && config.ollamaBaseUrl) {
     const ollamaUrl = config.ollamaBaseUrl || 'https://ollama.com/api';
     if (ollamaUrl.includes('ollama.com')) {

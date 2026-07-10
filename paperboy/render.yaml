@@ -21,9 +21,12 @@ services:
         value: production
       - key: PORT
         value: 10000
-      # FAL.AI - IA para texto e imágenes (todo en uno)
-      - key: AI_PROVIDER
-        value: fal
+      # Groq - IA de texto (gratis)
+      - key: GROQ_API_KEY
+        sync: false  # ⚠️ Configura en Render Dashboard
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      # FAL.AI - Generación de imágenes
       - key: IMAGE_PROVIDER
         value: fal
       - key: FAL_API_KEY
