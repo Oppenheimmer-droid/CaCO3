@@ -93,7 +93,28 @@ export interface RawPanelData {
 }
 
 export function parseComicPanelData(text: string): ParseResult<RawPanelData[]> {
-  const result = parseJSON<RawPanelData[]>(text, 'array of panel objects');
+  // Try direct parse first
+  let result = parseJSON<RawPanelData[]>(text, 'array of panel objects');
+
+  if (!result.success) {
+    // Try parsing as object with panels/key
+    const objResult = parseJSON<Record<string, unknown>>(text, 'object');
+    if (objResult.success) {
+      const obj = objResult.data!;
+      // Look for array in common keys
+      const arrayKey = 'panels' in obj ? 'panels' : 
+                       'data' in obj ? 'data' : 
+                       'comics' in obj ? 'comics' : 
+                       'slides' in obj ? 'slides' : null;
+      
+      if (arrayKey) {
+        const potentialArray = obj[arrayKey];
+        if (Array.isArray(potentialArray)) {
+          result = { success: true, data: potentialArray as RawPanelData[] };
+        }
+      }
+    }
+  }
 
   if (!result.success) {
     return result;
