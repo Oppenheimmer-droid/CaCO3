@@ -629,51 +629,56 @@ class GroqProvider implements AIProvider {
 // ==================== PROVIDER FACTORY ====================
 
 let cachedProvider: AIProvider | null = null;
+let runtimeKeys: { groqApiKey?: string; falApiKey?: string } | null = null;
+
+async function fetchRuntimeKeys(): Promise<typeof runtimeKeys> {
+  if (runtimeKeys !== null) return runtimeKeys;
+  
+  try {
+    const response = await fetch('/api/keys');
+    if (response.ok) {
+      runtimeKeys = await response.json();
+      console.info('Loaded API keys from server');
+    } else {
+      runtimeKeys = {};
+    }
+  } catch {
+    runtimeKeys = {};
+  }
+  return runtimeKeys;
+}
 
 export function getAIProvider(): AIProvider {
   if (cachedProvider) {
     return cachedProvider;
   }
 
-  // Solo usar backend proxy si hay URL configurada explícitamente (no localhost)
-  const hasExplicitBackendUrl = ENV_BACKEND_URL && !ENV_BACKEND_URL.includes('localhost');
-  
-  // En producción (no localhost), usar el mismo origen como backend proxy
-  const isProductionBuild = import.meta.env.PROD;
-  const effectiveBackendUrl = hasExplicitBackendUrl 
-    ? ENV_BACKEND_URL 
-    : (isProductionBuild ? window.location.origin : '');
-  
-  const providerConfig = {
-    provider: ENV_AI_PROVIDER,
-    geminiApiKey: ENV_GEMINI_API_KEY,
-    ollamaBaseUrl: ENV_OLLAMA_BASE_URL,
-    ollamaModel: ENV_OLLAMA_MODEL,
-    ollamaApiKey: ENV_OLLAMA_API_KEY,
-    groqApiKey: ENV_GROQ_API_KEY,
-    groqModel: ENV_GROQ_MODEL,
-    backendUrl: effectiveBackendUrl
-  };
+  // En desarrollo local, usar variables de entorno directamente
+  if (!import.meta.env.PROD) {
+    const providerConfig = {
+      provider: ENV_AI_PROVIDER,
+      geminiApiKey: ENV_GEMINI_API_KEY,
+      ollamaBaseUrl: ENV_OLLAMA_BASE_URL,
+      ollamaModel: ENV_OLLAMA_MODEL,
+      ollamaApiKey: ENV_OLLAMA_API_KEY,
+      groqApiKey: ENV_GROQ_API_KEY,
+      groqModel: ENV_GROQ_MODEL
+    };
 
-  // Priority: Groq (texto) + FalImageProvider (imágenes)
-  if (providerConfig.groqApiKey) {
-    cachedProvider = new GroqProvider(providerConfig.groqApiKey, providerConfig.groqModel);
-    console.info(`Using Groq for text with model ${providerConfig.groqModel}`);
-  } else if (providerConfig.backendUrl && effectiveBackendUrl) {
-    cachedProvider = new BackendProvider(effectiveBackendUrl);
-    console.info(`Using backend proxy: ${effectiveBackendUrl}`);
-  } else if (providerConfig.provider === 'ollama' && providerConfig.ollamaBaseUrl) {
-    if (providerConfig.ollamaBaseUrl.includes('ollama.com')) {
+    if (providerConfig.groqApiKey) {
+      cachedProvider = new GroqProvider(providerConfig.groqApiKey, providerConfig.groqModel);
+      console.info(`Using Groq for text with model ${providerConfig.groqModel}`);
+    } else if (providerConfig.provider === 'ollama' && providerConfig.ollamaBaseUrl) {
       cachedProvider = new OllamaCloudProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel, providerConfig.ollamaApiKey);
       console.info(`Using Ollama Cloud provider: ${providerConfig.ollamaBaseUrl} with model ${providerConfig.ollamaModel}`);
     } else {
-      cachedProvider = new OllamaProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel, providerConfig.ollamaApiKey);
-      console.info(`Using Ollama provider: ${providerConfig.ollamaBaseUrl} with model ${providerConfig.ollamaModel}`);
+      cachedProvider = new GeminiProvider(providerConfig.geminiApiKey || '');
+      console.info('Using Gemini provider');
     }
   } else {
-    const apiKey = providerConfig.geminiApiKey || '';
-    cachedProvider = new GeminiProvider(apiKey);
-    console.info('Using Gemini provider');
+    // En producción, usar el backend proxy (que tiene las keys configuradas)
+    cachedProvider = new BackendProvider(window.location.origin);
+    console.info('Using backend proxy for production');
   }
 
   return cachedProvider;

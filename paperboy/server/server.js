@@ -211,6 +211,17 @@ app.get('/config/ai-config.json', (req, res) => {
   res.json(config);
 });
 
+// Endpoint seguro para keys (solo en producción)
+app.get('/api/keys', (req, res) => {
+  if (process.env.NODE_ENV !== 'production') {
+    return res.status(403).json({ error: 'Only available in production' });
+  }
+  res.json({
+    groqApiKey: process.env.GROQ_API_KEY || '',
+    falApiKey: process.env.FAL_API_KEY || ''
+  });
+});
+
 // ==================== GROQ PROXY (texto) ====================
 app.post('/api/groq', async (req, res) => {
   const { prompt, model, responseMimeType } = req.body || {};
