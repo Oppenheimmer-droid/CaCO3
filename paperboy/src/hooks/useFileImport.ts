@@ -1,16 +1,11 @@
 import { useCallback } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import { AIProviderError } from '../types';
-import { getAIProvider } from '../services/aiProvider';
-import { TRANSCRIPTION_PROMPT } from '../constants';
 
-// Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs-dist/build/pdf.worker.mjs';
 
 export function useFileImport() {
   const processTextFile = useCallback(async (file: File): Promise<string> => {
-    const text = await file.text();
-    return text;
+    return await file.text();
   }, []);
 
   const processPdfFile = useCallback(async (file: File): Promise<string> => {
@@ -30,36 +25,6 @@ export function useFileImport() {
     return fullText.trim();
   }, []);
 
-  const processAudioFile = useCallback(async (file: File): Promise<string> => {
-    const provider = getAIProvider();
-    
-    if (!provider.supportsTranscription) {
-      throw new AIProviderError(
-        'El proveedor de IA actual no soporta transcripción de audio. ' +
-        'Usa Gemini como proveedor o proporciona un archivo de texto/PDF.',
-        'TRANSCRIPTION_UNSUPPORTED'
-      );
-    }
-
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = new Uint8Array(arrayBuffer);
-    
-    // Convert to base64
-    let binary = '';
-    for (let i = 0; i < buffer.byteLength; i++) {
-      binary += String.fromCharCode(buffer[i]);
-    }
-    const base64Audio = btoa(binary);
-
-    const result = await provider.transcribeAudio(base64Audio, file.type);
-    
-    if (!result.text) {
-      throw new AIProviderError('No se pudo transcribir el audio. Inténtalo con otro archivo.');
-    }
-
-    return result.text;
-  }, []);
-
   const handleFileChange = useCallback(async (
     file: File,
     onProgress: (message: string) => void,
@@ -75,11 +40,8 @@ export function useFileImport() {
         text = await processTextFile(file);
       } else if (file.type === 'application/pdf') {
         text = await processPdfFile(file);
-      } else if (file.type.startsWith('audio/')) {
-        onProgress('Transcribiendo audio... Esto puede tardar un momento.');
-        text = await processAudioFile(file);
       } else {
-        throw new Error('Formato de archivo no soportado. Por favor, sube un .txt, .pdf o un archivo de audio.');
+        throw new Error('Formato de archivo no soportado. Usa .txt o .pdf');
       }
 
       onSuccess(text);
@@ -89,12 +51,7 @@ export function useFileImport() {
     } finally {
       onProgress('');
     }
-  }, [processTextFile, processPdfFile, processAudioFile]);
+  }, [processTextFile, processPdfFile]);
 
-  return {
-    handleFileChange,
-    processTextFile,
-    processPdfFile,
-    processAudioFile
-  };
+  return { handleFileChange };
 }
