@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "prebuild": "cd paperboy && npm install --include=dev && cd server && npm install && cd ..",
+    "prebuild": "cd paperboy && npm install --include=dev",
     "build": "cd paperboy && npm run build",
-    "start": "node paperboy/server/server.js",
+    "start": "cd paperboy && npx serve dist",
     "dev": "cd paperboy && npm run dev"
   }
 }
