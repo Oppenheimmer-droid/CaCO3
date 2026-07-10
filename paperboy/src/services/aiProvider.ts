@@ -657,8 +657,9 @@ class FalProvider implements AIProvider {
       const errorBody = await response.text().catch(() => '');
       throw new AIProviderError(
         `FAL.AI text API error: ${response.status} - ${errorBody}`,
-        response.status === 429 || response.status >= 500,
-        response.status
+        undefined,
+        response.status,
+        response.status === 429 || response.status >= 500
       );
     }
 
@@ -706,14 +707,15 @@ class FalProvider implements AIProvider {
       const errorBody = await response.text();
       throw new AIProviderError(
         `FAL.AI image API error: ${response.status} - ${errorBody}`,
-        response.status === 429 || response.status >= 500,
-        response.status
+        undefined,
+        response.status,
+        response.status === 429 || response.status >= 500
       );
     }
 
     const data = await response.json() as { request_id: string };
     if (!data.request_id) {
-      throw new AIProviderError('No request ID returned from FAL.AI', false);
+      throw new AIProviderError('No request ID returned from FAL.AI');
     }
 
     // Poll for the result
@@ -744,11 +746,11 @@ class FalProvider implements AIProvider {
       }
       
       if (data.status === 'failed') {
-        throw new AIProviderError('Image generation failed on FAL.AI', false);
+        throw new AIProviderError('Image generation failed on FAL.AI');
       }
     }
     
-    throw new AIProviderError('Timeout waiting for FAL.AI image', true);
+    throw new AIProviderError('Timeout waiting for FAL.AI image', undefined, undefined, true);
   }
 
   async transcribeAudio(_audioData: string, _mimeType: string): Promise<TranscriptionResult> {

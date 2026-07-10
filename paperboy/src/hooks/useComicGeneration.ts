@@ -49,7 +49,7 @@ class FalUnifiedProvider {
     throw new Error('FAL.AI provider does not support text generation');
   }
 
-  async generateImage(prompt: string, options?: { aspectRatio?: string }): Promise<{ base64: string; mimeType: string }> {
+  async generateImage(prompt: string, options?: { aspectRatio?: '1:1' | '4:3' | '16:9' | '9:16' }): Promise<{ base64: string; mimeType: string }> {
     return this.imageProvider.generateImage(prompt, options);
   }
 }
