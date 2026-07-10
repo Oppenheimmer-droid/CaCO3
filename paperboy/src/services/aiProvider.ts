@@ -4,7 +4,7 @@ import { loadRuntimeAIConfig, mergeAIConfig, RuntimeAIConfig } from './aiConfig'
 import { callBackendAI } from './aiBackend';
 
 // Environment configuration
-const ENV_AI_PROVIDER = (import.meta.env.VITE_AI_PROVIDER || import.meta.env.AI_PROVIDER || 'groq') as 'gemini' | 'ollama' | 'groq' | 'fal';
+const ENV_AI_PROVIDER = (import.meta.env.VITE_AI_PROVIDER || import.meta.env.AI_PROVIDER || 'groq') as 'gemini' | 'ollama' | 'groq';
 const ENV_GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY || '';
 const ENV_OLLAMA_BASE_URL = (import.meta.env.VITE_OLLAMA_BASE_URL || import.meta.env.OLLAMA_BASE_URL || 'https://ollama.com/api').replace(/\/$/, '');
 const ENV_OLLAMA_MODEL = import.meta.env.VITE_OLLAMA_MODEL || import.meta.env.OLLAMA_MODEL || 'llama3';
@@ -617,117 +617,6 @@ class GroqProvider implements AIProvider {
   }
 }
 
-// ==================== FAL.AI TEXT PROVIDER ====================
-
-class FalProvider implements AIProvider {
-  readonly name = 'fal';
-  readonly supportsImageGeneration = true;
-  readonly supportsTranscription = false;
-
-  private apiKey: string;
-
-  constructor(apiKey: string) {
-    this.apiKey = apiKey;
-  }
-
-  async generateText(prompt: string, options?: TextGenerationOptions): Promise<TextGenerationResult> {
-    // FAL.AI doesn't support text generation directly
-    // This is a stub - use GroqProvider or GeminiProvider for text
-    throw new AIProviderError(
-      'Text generation via FAL.AI is not supported. Use Groq or Gemini provider.',
-      'TEXT_GENERATION_UNSUPPORTED',
-      undefined,
-      false
-    );
-  }
-
-  async generateImage(prompt: string, options?: ImageGenerationOptions): Promise<ImageGenerationResult> {
-    if (!this.apiKey) {
-      throw new AIProviderError('FAL_API_KEY is required for FalProvider', 'MISSING_API_KEY', 401, false);
-    }
-
-    // Map aspect ratio to fal.ai image size
-    const sizeMap: Record<string, string> = {
-      '1:1': 'square_1_1',
-      '4:3': 'landscape_4_3',
-      '16:9': 'landscape_16_9',
-      '9:16': 'portrait_9_16'
-    };
-    const imageSize = options?.aspectRatio ? sizeMap[options.aspectRatio] || 'square_1_1' : 'square_1_1';
-
-    const response = await fetch('https://queue.fal.run/fal-ai/flux-pro', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Key ${this.apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        prompt,
-        image_size: imageSize,
-        num_images: 1
-      })
-    });
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      throw new AIProviderError(
-        `FAL.AI image API error: ${response.status} - ${errorBody}`,
-        undefined,
-        response.status,
-        response.status === 429 || response.status >= 500
-      );
-    }
-
-    const data = await response.json() as { request_id: string };
-    if (!data.request_id) {
-      throw new AIProviderError('No request ID returned from FAL.AI');
-    }
-
-    // Poll for the result
-    return this.pollForResult(data.request_id);
-  }
-
-  private async pollForResult(requestId: string, maxAttempts = 30): Promise<ImageGenerationResult> {
-    const pollUrl = `https://queue.fal.run/fal-ai/flux-pro/requests/${requestId}`;
-    
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const response = await fetch(pollUrl, {
-        headers: {
-          'Authorization': `Key ${this.apiKey}`
-        }
-      });
-      
-      const data = await response.json() as { status: string; images?: Array<{ url: string }> };
-      
-      if (data.status === 'completed' && data.images && data.images.length > 0) {
-        const imageUrl = data.images[0].url;
-        const imageResponse = await fetch(imageUrl);
-        const imageBuffer = await imageResponse.arrayBuffer();
-        const base64 = Buffer.from(imageBuffer).toString('base64');
-        
-        return { base64, mimeType: 'image/png' };
-      }
-      
-      if (data.status === 'failed') {
-        throw new AIProviderError('Image generation failed on FAL.AI');
-      }
-    }
-    
-    throw new AIProviderError('Timeout waiting for FAL.AI image', undefined, undefined, true);
-  }
-
-  async transcribeAudio(_audioData: string, _mimeType: string): Promise<TranscriptionResult> {
-    throw new AIProviderError(
-      'Audio transcription is not supported by FalProvider.',
-      'TRANSCRIPTION_UNSUPPORTED',
-      undefined,
-      false
-    );
-  }
-}
-
 // ==================== PROVIDER FACTORY ====================
 
 let cachedProvider: AIProvider | null = null;
@@ -745,17 +634,13 @@ export function getAIProvider(): AIProvider {
     ollamaApiKey: ENV_OLLAMA_API_KEY,
     groqApiKey: ENV_GROQ_API_KEY,
     groqModel: ENV_GROQ_MODEL,
-    falApiKey: ENV_FAL_API_KEY,
     backendUrl: ENV_BACKEND_URL !== 'http://localhost:4000' ? ENV_BACKEND_URL : ''
   };
 
-  // Groq provider (free) for text - FAL.AI for images only
-  if (providerConfig.groqApiKey) {
+  // Groq provider (free, fast)
+  if (providerConfig.provider === 'groq' || (!providerConfig.geminiApiKey && !providerConfig.ollamaBaseUrl)) {
     cachedProvider = new GroqProvider(providerConfig.groqApiKey, providerConfig.groqModel);
-    console.info(`Using Groq provider for text with model ${providerConfig.groqModel}`);
-  } else if (providerConfig.provider === 'gemini' && providerConfig.geminiApiKey) {
-    cachedProvider = new GeminiProvider(providerConfig.geminiApiKey);
-    console.info('Using Gemini provider for text');
+    console.info(`Using Groq provider with model ${providerConfig.groqModel}`);
   } else if (providerConfig.provider === 'ollama' && providerConfig.ollamaBaseUrl) {
     if (providerConfig.ollamaBaseUrl.includes('ollama.com')) {
       cachedProvider = new OllamaCloudProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel, providerConfig.ollamaApiKey);
@@ -782,13 +667,10 @@ export async function initializeAIProvider(): Promise<AIProvider> {
     return cachedProvider;
   }
 
-  // Groq provider (free) for text - FAL.AI for images only
-  if (config.groqApiKey) {
-    cachedProvider = new GroqProvider(config.groqApiKey, config.groqModel || ENV_GROQ_MODEL);
+  // Groq provider (free, fast) - default if no other provider is configured
+  if (config.provider === 'groq' || (!config.geminiApiKey && !config.ollamaBaseUrl)) {
+    cachedProvider = new GroqProvider(config.groqApiKey || ENV_GROQ_API_KEY, config.groqModel || ENV_GROQ_MODEL);
     console.info(`Using Groq provider from runtime config with model ${config.groqModel || ENV_GROQ_MODEL}`);
-  } else if (config.geminiApiKey) {
-    cachedProvider = new GeminiProvider(config.geminiApiKey);
-    console.info('Using Gemini provider from runtime config');
   } else if (config.provider === 'ollama' && config.ollamaBaseUrl) {
     const ollamaUrl = config.ollamaBaseUrl || 'https://ollama.com/api';
     if (ollamaUrl.includes('ollama.com')) {

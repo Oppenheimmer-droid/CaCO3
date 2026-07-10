@@ -1,6 +1,5 @@
 import { useCallback } from 'react';
 import { getAIProvider, getImageProvider, FAL_API_KEY } from '../services/aiProvider';
-import type { ImageProvider } from '../services/imageProvider';
 import { PanelData, AIProviderError } from '../types';
 import { parseComicPanelData, validatePanelCount, createProviderError } from '../utils/parser';
 import { DEFAULT_SCRIPT_PROMPT, IMAGE_PROMPT_SUFFIX, GENERATION_DEFAULTS } from '../constants';
@@ -33,28 +32,6 @@ export interface UseComicGenerationReturn {
   ) => Promise<void>;
 }
 
-// Unified provider that uses AI provider for text and FAL.AI for images
-class ComicProvider {
-  private textProvider: ReturnType<typeof getAIProvider>;
-  private imageProvider: ImageProvider | null;
-
-  constructor(textProvider: ReturnType<typeof getAIProvider>, imageProvider: ImageProvider | null) {
-    this.textProvider = textProvider;
-    this.imageProvider = imageProvider;
-  }
-
-  async generateText(prompt: string, options?: { responseMimeType?: string }): Promise<{ text: string }> {
-    return this.textProvider.generateText(prompt, options);
-  }
-
-  async generateImage(prompt: string, options?: { aspectRatio?: '1:1' | '4:3' | '16:9' | '9:16' }): Promise<{ base64: string; mimeType: string }> {
-    if (!this.imageProvider) {
-      throw new Error('FAL.AI provider not configured');
-    }
-    return this.imageProvider.generateImage(prompt, options);
-  }
-}
-
 export function useComicGeneration(): UseComicGenerationReturn {
   const generateComic = useCallback(async (
     scriptText: string,
@@ -63,20 +40,16 @@ export function useComicGeneration(): UseComicGenerationReturn {
     onError: (error: string) => void,
     onComplete: () => void
   ) => {
-    // Use AI provider for text (Groq, Gemini, etc.) and FAL.AI for images
-    const textProvider = getAIProvider();
+    const provider = getAIProvider();
     const imageProvider = getImageProvider('fal', FAL_API_KEY);
-    
     if (!imageProvider) {
-      onError('FAL.AI provider not available. Please configure FAL_API_KEY.');
+      onError('Proveedor de imágenes no disponible');
       return;
     }
-    
-    const provider = new ComicProvider(textProvider, imageProvider);
     const generatedPanels: PanelData[] = [];
 
     try {
-      // Step 1: Generate script and image prompts using AI provider (Groq/Gemini)
+      // Step 1: Generate script and image prompts
       onProgress('Creando el guion y las ideas para las 8 viñetas...');
       
       const promptText = `${DEFAULT_SCRIPT_PROMPT}\n\nTexto original:\n\n${scriptText}`;
@@ -210,15 +183,12 @@ export function useComicGeneration(): UseComicGenerationReturn {
     onError: (error: string) => void,
     onCancel: () => void
   ) => {
-    // Use AI provider for text and FAL.AI for images
-    const textProvider = getAIProvider();
+    const provider = getAIProvider();
     const imageProvider = getImageProvider('fal', FAL_API_KEY);
     if (!imageProvider) {
-      onError('FAL.AI provider not available. Please configure FAL_API_KEY.');
+      onError('Proveedor de imágenes no disponible');
       return;
     }
-    
-    const provider = new ComicProvider(textProvider, imageProvider);
     const panelToUpdateIndex = currentPanels.length - 1 - panelIndex;
     
     // Mark panel as regenerating
@@ -289,7 +259,7 @@ export function useComicGeneration(): UseComicGenerationReturn {
     const imageProvider = getImageProvider('fal', FAL_API_KEY);
     
     if (!imageProvider) {
-      onError('FAL.AI provider not available. Please configure FAL_API_KEY.');
+      onError('Proveedor de imágenes no disponible');
       return;
     }
 

@@ -1,5 +1,5 @@
 # Paperboy - Render Blueprint
-# Despliegue completo con frontend React y backend Express
+# Generador de cómics con IA
 
 services:
   - type: web
@@ -8,11 +8,8 @@ services:
     plan: free
     region: oregon
     buildCommand: |
-      # Instalar dependencias del frontend (incluyendo devDependencies)
       npm install --include=dev
-      # Build del frontend React
       npm run build
-      # Instalar dependencias del servidor
       cd server && npm install
     startCommand: node server/server.js
     healthCheckPath: /
@@ -22,6 +19,8 @@ services:
       - key: PORT
         value: 10000
       # Groq - IA de texto (gratis)
+      - key: AI_PROVIDER
+        value: groq
       - key: GROQ_API_KEY
         sync: false  # ⚠️ Configura en Render Dashboard
       - key: GROQ_MODEL
