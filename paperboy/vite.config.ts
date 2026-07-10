@@ -13,7 +13,7 @@ export default defineConfig(({ mode }) => {
     // Default values - Groq (free) and FAL
     const defaultGroqModel = 'llama-3.3-70b-versatile';
     const defaultImageProvider = 'fal';
-    const defaultFalModel = 'fal-ai/flux-pro';
+    const defaultFalModel = 'fal-ai/flux-2-pro';
     
     // Keys for production - estos vienen de Render Environment Variables
     const groqApiKey = env.GROQ_API_KEY || '';

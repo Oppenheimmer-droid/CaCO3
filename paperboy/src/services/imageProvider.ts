@@ -47,14 +47,15 @@ export class FalImageProvider implements ImageProvider {
 
     // Map aspect ratio to fal.ai image size
     const sizeMap: Record<string, string> = {
-      '1:1': 'square_1_1',
+      '1:1': 'square',
       '4:3': 'landscape_4_3',
       '16:9': 'landscape_16_9',
-      '9:16': 'portrait_9_16'
+      '9:16': 'portrait_16_9'
     };
-    const imageSize = options?.aspectRatio ? sizeMap[options.aspectRatio] || 'square_1_1' : 'square_1_1';
+    const imageSize = options?.aspectRatio ? sizeMap[options.aspectRatio] || 'square' : 'square';
 
-    const response = await fetch('https://queue.fal.run/fal-ai/flux-pro', {
+    // Use Flux 2 Pro with sync_mode for immediate response
+    const response = await fetch('https://fal.run/fal-ai/flux-2-pro', {
       method: 'POST',
       headers: {
         'Authorization': `Key ${this.apiKey}`,
@@ -63,7 +64,8 @@ export class FalImageProvider implements ImageProvider {
       body: JSON.stringify({
         prompt,
         image_size: imageSize,
-        num_images: 1
+        output_format: 'png',
+        sync_mode: true
       })
     });
 
@@ -76,17 +78,18 @@ export class FalImageProvider implements ImageProvider {
       );
     }
 
-    // fal.ai returns a request ID that we need to poll
-    const data = await response.json() as { request_id: string };
+    const data = await response.json() as { images?: Array<{ url: string }> };
     
-    if (!data.request_id) {
-      throw new ImageProviderError('No request ID returned', false);
+    if (!data.images || data.images.length === 0) {
+      throw new ImageProviderError('No image generated', false);
     }
 
-    // Poll for the result
-    const result = await this.pollForResult(data.request_id);
+    const imageUrl = data.images[0].url;
+    const imageResponse = await fetch(imageUrl);
+    const imageBuffer = await imageResponse.arrayBuffer();
+    const base64 = Buffer.from(imageBuffer).toString('base64');
     
-    return result;
+    return { base64, mimeType: 'image/png' };
   }
 
   // FAL.AI no soporta texto - usar GroqProvider para texto
@@ -95,38 +98,6 @@ export class FalImageProvider implements ImageProvider {
       'Text generation via FAL.AI is not supported. Use Groq provider.',
       false
     ));
-  }
-
-  private async pollForResult(requestId: string, maxAttempts = 30): Promise<ImageGenerationResult> {
-    const pollUrl = `https://queue.fal.run/fal-ai/flux-pro/requests/${requestId}`;
-    
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const response = await fetch(pollUrl, {
-        headers: {
-          'Authorization': `Key ${this.apiKey}`
-        }
-      });
-      
-      const data = await response.json() as { status: string; images?: Array<{ url: string }> };
-      
-      if (data.status === 'completed' && data.images && data.images.length > 0) {
-        // Fetch the actual image and convert to base64
-        const imageUrl = data.images[0].url;
-        const imageResponse = await fetch(imageUrl);
-        const imageBuffer = await imageResponse.arrayBuffer();
-        const base64 = Buffer.from(imageBuffer).toString('base64');
-        
-        return { base64, mimeType: 'image/png' };
-      }
-      
-      if (data.status === 'failed') {
-        throw new ImageProviderError('Image generation failed', false);
-      }
-    }
-    
-    throw new ImageProviderError('Timeout waiting for image', true);
   }
 }
 

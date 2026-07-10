@@ -279,17 +279,18 @@ app.post('/api/fal-image', async (req, res) => {
     return res.status(400).json({ error: 'Prompt is required' });
   }
 
+  // Map aspect ratio to Flux 2 Pro image size
   const sizeMap = {
-    '1:1': 'square_1_1',
+    '1:1': 'square',
     '4:3': 'landscape_4_3',
     '16:9': 'landscape_16_9',
-    '9:16': 'portrait_9_16'
+    '9:16': 'portrait_16_9'
   };
-  const imageSize = sizeMap[aspectRatio] || 'square_1_1';
+  const imageSize = sizeMap[aspectRatio] || 'square';
 
   try {
-    // Submit request
-    const submitResponse = await fetch('https://queue.fal.run/fal-ai/flux-pro', {
+    // Use Flux 2 Pro with sync_mode for immediate response
+    const response = await fetch('https://fal.run/fal-ai/flux-2-pro', {
       method: 'POST',
       headers: {
         'Authorization': `Key ${apiKey}`,
@@ -298,47 +299,28 @@ app.post('/api/fal-image', async (req, res) => {
       body: JSON.stringify({
         prompt,
         image_size: imageSize,
-        num_images: 1
+        output_format: 'png',
+        sync_mode: true
       })
     });
 
-    if (!submitResponse.ok) {
-      const errorBody = await submitResponse.text();
-      return res.status(submitResponse.status).json({ error: `FAL.AI submit error: ${errorBody}` });
+    if (!response.ok) {
+      const errorBody = await response.text();
+      return res.status(response.status).json({ error: `FAL.AI error: ${errorBody}` });
     }
 
-    const { request_id } = await submitResponse.json();
+    const data = await response.json();
     
-    // Poll for result
-    const pollUrl = `https://queue.fal.run/fal-ai/flux-pro/requests/${request_id}`;
-    let attempts = 0;
-    const maxAttempts = 60;
-
-    while (attempts < maxAttempts) {
-      await new Promise(r => setTimeout(r, 2000));
-      
-      const statusResponse = await fetch(pollUrl, {
-        headers: { 'Authorization': `Key ${apiKey}` }
-      });
-      
-      const statusData = await statusResponse.json();
-      
-      if (statusData.status === 'completed' && statusData.images?.length > 0) {
-        const imageUrl = statusData.images[0].url;
-        const imageResponse = await fetch(imageUrl);
-        const imageBuffer = await imageResponse.arrayBuffer();
-        const base64 = Buffer.from(imageBuffer).toString('base64');
-        return res.json({ base64, mimeType: 'image/png' });
-      }
-      
-      if (statusData.status === 'failed') {
-        return res.status(500).json({ error: 'FAL.AI image generation failed' });
-      }
-      
-      attempts++;
+    if (!data.images || data.images.length === 0) {
+      return res.status(500).json({ error: 'No image generated' });
     }
 
-    return res.status(504).json({ error: 'FAL.AI timeout waiting for image' });
+    const imageUrl = data.images[0].url;
+    const imageResponse = await fetch(imageUrl);
+    const imageBuffer = await imageResponse.arrayBuffer();
+    const base64 = Buffer.from(imageBuffer).toString('base64');
+    
+    return res.json({ base64, mimeType: 'image/png' });
   } catch (error) {
     return res.status(500).json({ error: error instanceof Error ? error.message : 'FAL.AI proxy failed' });
   }
