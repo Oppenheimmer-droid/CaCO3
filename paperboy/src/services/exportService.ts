@@ -325,16 +325,37 @@ export async function exportBuildingPng(
   elementId: string,
   filename: string = '13_rue_del_percebe_ia.png'
 ): Promise<void> {
-  const canvas = await captureElement(elementId, {
-    scale: 2,
-    backgroundColor: '#f3f4f6'
-  });
+  const element = document.getElementById(elementId);
+  if (!element) {
+    throw new Error(`Element with id "${elementId}" not found`);
+  }
 
-  const imgData = canvas.toDataURL('image/png');
-  const link = document.createElement('a');
-  link.download = filename;
-  link.href = imgData;
-  link.click();
+  // Ensure element is visible
+  const originalDisplay = element.style.display;
+  const originalVisibility = element.style.visibility;
+  element.style.display = 'block';
+  element.style.visibility = 'visible';
+
+  try {
+    const canvas = await captureElement(elementId, {
+      scale: 2,
+      backgroundColor: '#f3f4f6'
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    
+    // Use more robust download method
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = imgData;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } finally {
+    element.style.display = originalDisplay;
+    element.style.visibility = originalVisibility;
+  }
 }
 
 /**
@@ -344,23 +365,39 @@ export async function exportBuildingPdf(
   elementId: string,
   filename: string = '13_rue_del_percebe_ia.pdf'
 ): Promise<void> {
-  const canvas = await captureElement(elementId, {
-    scale: 2,
-    backgroundColor: '#f3f4f6'
-  });
+  const element = document.getElementById(elementId);
+  if (!element) {
+    throw new Error(`Element with id "${elementId}" not found`);
+  }
 
-  const imgData = canvas.toDataURL('image/png');
-  const pdf = new jsPDF('p', 'mm', 'a4');
-  const pdfWidth = pdf.internal.pageSize.getWidth();
-  const pdfHeight = pdf.internal.pageSize.getHeight();
-  
-  const imgWidth = pdfWidth - 20;
-  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+  // Ensure element is visible
+  const originalDisplay = element.style.display;
+  const originalVisibility = element.style.visibility;
+  element.style.display = 'block';
+  element.style.visibility = 'visible';
 
-  pdf.setFontSize(14);
-  pdf.text("13, Rue del Percebe - Réplica Interactiva IA", 10, 12);
-  pdf.addImage(imgData, 'PNG', 10, 18, imgWidth, imgHeight);
-  pdf.save(filename);
+  try {
+    const canvas = await captureElement(elementId, {
+      scale: 2,
+      backgroundColor: '#f3f4f6'
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    
+    const imgWidth = pdfWidth - 20;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    pdf.setFontSize(14);
+    pdf.text("13, Rue del Percebe - Réplica Interactiva IA", 10, 12);
+    pdf.addImage(imgData, 'PNG', 10, 18, imgWidth, imgHeight);
+    pdf.save(filename);
+  } finally {
+    element.style.display = originalDisplay;
+    element.style.visibility = originalVisibility;
+  }
 }
 
 /**
@@ -370,5 +407,8 @@ export function downloadImage(url: string, filename: string): void {
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
+  link.style.display = 'none';
+  document.body.appendChild(link);
   link.click();
+  document.body.removeChild(link);
 }
