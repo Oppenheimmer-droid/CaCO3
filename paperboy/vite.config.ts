@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => {
     const defaultGroqModel = 'llama-3.3-70b-versatile';
     const defaultImageProvider = 'fal';
     const defaultFalModel = 'fal-ai/flux-pro';
+    const defaultBackendUrl = isGitHubPages ? 'http://localhost:4000' : 'http://localhost:4000';
     
     return {
       base,

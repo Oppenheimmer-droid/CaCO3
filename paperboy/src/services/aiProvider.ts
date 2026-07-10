@@ -635,11 +635,14 @@ export function getAIProvider(): AIProvider {
     return cachedProvider;
   }
 
-  // Check if backend proxy is available (production)
-  const isProduction = import.meta.env.PROD || (ENV_BACKEND_URL && ENV_BACKEND_URL !== 'http://localhost:4000');
+  // Solo usar backend proxy si hay URL configurada explícitamente (no localhost)
+  const hasExplicitBackendUrl = ENV_BACKEND_URL && !ENV_BACKEND_URL.includes('localhost');
   
-  // In production without explicit backend URL, use current origin
-  const effectiveBackendUrl = ENV_BACKEND_URL || (typeof window !== 'undefined' && isProduction ? window.location.origin : '');
+  // En producción (no localhost), usar el mismo origen como backend proxy
+  const isProductionBuild = import.meta.env.PROD;
+  const effectiveBackendUrl = hasExplicitBackendUrl 
+    ? ENV_BACKEND_URL 
+    : (isProductionBuild ? window.location.origin : '');
   
   const providerConfig = {
     provider: ENV_AI_PROVIDER,
@@ -652,17 +655,15 @@ export function getAIProvider(): AIProvider {
     backendUrl: effectiveBackendUrl
   };
 
-  // Use backend proxy in production (API keys are on server)
-  if (isProduction && effectiveBackendUrl) {
+  // En producción usa backend proxy, en desarrollo usa Groq directamente si hay key
+  if (effectiveBackendUrl) {
     cachedProvider = new BackendProvider(effectiveBackendUrl);
     console.info(`Using backend proxy: ${effectiveBackendUrl}`);
-  }
-  // Groq provider (free, fast) - use directly if API key is available
-  else if (providerConfig.groqApiKey && providerConfig.provider === 'groq') {
+  } else if (providerConfig.groqApiKey) {
+    // Solo usa Groq directamente en desarrollo con key configurada
     cachedProvider = new GroqProvider(providerConfig.groqApiKey, providerConfig.groqModel);
     console.info(`Using Groq provider with model ${providerConfig.groqModel}`);
-  }
-  else if (providerConfig.provider === 'ollama' && providerConfig.ollamaBaseUrl) {
+  } else if (providerConfig.provider === 'ollama' && providerConfig.ollamaBaseUrl) {
     if (providerConfig.ollamaBaseUrl.includes('ollama.com')) {
       cachedProvider = new OllamaCloudProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel, providerConfig.ollamaApiKey);
       console.info(`Using Ollama Cloud provider: ${providerConfig.ollamaBaseUrl} with model ${providerConfig.ollamaModel}`);
@@ -670,9 +671,6 @@ export function getAIProvider(): AIProvider {
       cachedProvider = new OllamaProvider(providerConfig.ollamaBaseUrl, providerConfig.ollamaModel, providerConfig.ollamaApiKey);
       console.info(`Using Ollama provider: ${providerConfig.ollamaBaseUrl} with model ${providerConfig.ollamaModel}`);
     }
-  } else if (effectiveBackendUrl) {
-    cachedProvider = new BackendProvider(effectiveBackendUrl);
-    console.info(`Using backend provider: ${effectiveBackendUrl}`);
   } else {
     const apiKey = providerConfig.geminiApiKey || '';
     cachedProvider = new GeminiProvider(apiKey);

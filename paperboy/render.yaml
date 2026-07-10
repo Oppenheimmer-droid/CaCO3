@@ -18,13 +18,6 @@ services:
         value: production
       - key: PORT
         value: 10000
-      # El frontend usa BACKEND_URL para saber dónde está el proxy
-      # En producción será la misma URL del servicio
-      - key: BACKEND_URL
-        fromService:
-          type: web
-          name: paperboy
-          envVarKey: RENDER_EXTERNAL_URL
       # Groq - IA de texto (gratis) - solo en el server
       - key: GROQ_API_KEY
         sync: false  # ⚠️ Configura en Render Dashboard
@@ -35,3 +28,4 @@ services:
         sync: false  # ⚠️ Configura en Render Dashboard
       - key: FAL_MODEL
         value: fal-ai/flux-pro
+      # NO configurar BACKEND_URL - el frontend usará Groq directamente
