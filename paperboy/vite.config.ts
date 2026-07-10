@@ -11,7 +11,8 @@ export default defineConfig(({ mode }) => {
     const base = isGitHubPages ? '/CaCO3/' : '/';
     
     // Default values - Groq (free) and FAL
-    const defaultGroqApiKey = 'gsk_s4dMU8Q1Cs3U7gPZvJ8XWGdyb3FYvFb6qL1E7Y5XhJkZm2NpQ';
+    // ⚠️ IMPORTANTE: Obtén tu API key real en https://console.groq.com/keys
+    const defaultGroqApiKey = env.GROQ_API_KEY || '';
     const defaultGroqModel = 'llama-3.3-70b-versatile';
     const defaultImageProvider = 'fal';
     const defaultFalModel = 'fal-ai/flux-pro';

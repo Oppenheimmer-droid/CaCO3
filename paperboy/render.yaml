@@ -21,17 +21,17 @@ services:
         value: production
       - key: PORT
         value: 10000
+      # Groq - IA de texto (gratis y rápido)
       - key: AI_PROVIDER
-        value: ollama
-      - key: OLLAMA_BASE_URL
-        value: https://ollama.com/api
-      - key: OLLAMA_MODEL
-        value: llama3
-      - key: OLLAMA_API_KEY
-        sync: false
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false  # ⚠️ Configura en Render Dashboard
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      # FAL.AI - Generación de imágenes
       - key: IMAGE_PROVIDER
         value: fal
       - key: FAL_API_KEY
-        sync: false
+        sync: false  # ⚠️ Configura en Render Dashboard
       - key: FAL_MODEL
         value: fal-ai/flux-pro
