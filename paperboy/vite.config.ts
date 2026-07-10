@@ -11,7 +11,6 @@ export default defineConfig(({ mode }) => {
     const base = isGitHubPages ? '/CaCO3/' : '/';
     
     // Default values - Groq (free) and FAL
-    const defaultGroqApiKey = 'gsk_s4dMU8Q1Cs3U7gPZvJ8XWGdyb3FYvFb6qL1E7Y5XhJkZm2NpQ';
     const defaultGroqModel = 'llama-3.3-70b-versatile';
     const defaultImageProvider = 'fal';
     const defaultFalModel = 'fal-ai/flux-pro';
@@ -25,7 +24,7 @@ export default defineConfig(({ mode }) => {
       plugins: [react()],
       define: {
         'import.meta.env.VITE_AI_PROVIDER': JSON.stringify(env.AI_PROVIDER || 'groq'),
-        'import.meta.env.VITE_GROQ_API_KEY': JSON.stringify(env.GROQ_API_KEY || defaultGroqApiKey),
+        'import.meta.env.VITE_GROQ_API_KEY': JSON.stringify(env.GROQ_API_KEY || ''),
         'import.meta.env.VITE_GROQ_MODEL': JSON.stringify(env.GROQ_MODEL || defaultGroqModel),
         'import.meta.env.VITE_OLLAMA_BASE_URL': JSON.stringify(env.OLLAMA_BASE_URL || 'https://ollama.com/api'),
         'import.meta.env.VITE_OLLAMA_MODEL': JSON.stringify(env.OLLAMA_MODEL || 'llama3'),
