@@ -4,7 +4,7 @@ import { loadRuntimeAIConfig, mergeAIConfig, RuntimeAIConfig } from './aiConfig'
 import { callBackendAI } from './aiBackend';
 
 // Environment configuration
-const ENV_AI_PROVIDER = (import.meta.env.VITE_AI_PROVIDER || import.meta.env.AI_PROVIDER || 'groq') as 'gemini' | 'ollama' | 'groq';
+const ENV_AI_PROVIDER = (import.meta.env.VITE_AI_PROVIDER || import.meta.env.AI_PROVIDER || 'groq') as 'gemini' | 'ollama' | 'groq' | 'fal';
 const ENV_GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY || '';
 const ENV_OLLAMA_BASE_URL = (import.meta.env.VITE_OLLAMA_BASE_URL || import.meta.env.OLLAMA_BASE_URL || 'https://ollama.com/api').replace(/\/$/, '');
 const ENV_OLLAMA_MODEL = import.meta.env.VITE_OLLAMA_MODEL || import.meta.env.OLLAMA_MODEL || 'llama3';
@@ -617,6 +617,150 @@ class GroqProvider implements AIProvider {
   }
 }
 
+// ==================== FAL.AI TEXT PROVIDER ====================
+
+class FalProvider implements AIProvider {
+  readonly name = 'fal';
+  readonly supportsImageGeneration = true;
+  readonly supportsTranscription = false;
+
+  private apiKey: string;
+
+  constructor(apiKey: string) {
+    this.apiKey = apiKey;
+  }
+
+  async generateText(prompt: string, options?: TextGenerationOptions): Promise<TextGenerationResult> {
+    if (!this.apiKey) {
+      throw new AIProviderError('FAL_API_KEY is required for FalProvider', 'MISSING_API_KEY', 401, false);
+    }
+
+    // Use fal.ai's fast inference API for text generation
+    const response = await fetch('https://fast.lushor.cloud/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Key ${this.apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'deepseek-ai/DeepSeek-V3-0324',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 4096,
+        temperature: 0.7,
+        response_format: options?.responseMimeType === 'application/json' 
+          ? { type: 'json_object' }
+          : undefined
+      })
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      throw new AIProviderError(
+        `FAL.AI text API error: ${response.status} - ${errorBody}`,
+        response.status === 429 || response.status >= 500,
+        response.status
+      );
+    }
+
+    const data = await response.json() as Record<string, unknown>;
+    const choices = data.choices as Array<Record<string, unknown>> | undefined;
+    if (!choices || choices.length === 0) {
+      throw new AIProviderError('No response from FAL.AI API');
+    }
+    
+    const message = choices[0].message as Record<string, unknown> | undefined;
+    return {
+      text: (message?.content as string) || '',
+      rawResponse: data
+    };
+  }
+
+  async generateImage(prompt: string, options?: ImageGenerationOptions): Promise<ImageGenerationResult> {
+    if (!this.apiKey) {
+      throw new AIProviderError('FAL_API_KEY is required for FalProvider', 'MISSING_API_KEY', 401, false);
+    }
+
+    // Map aspect ratio to fal.ai image size
+    const sizeMap: Record<string, string> = {
+      '1:1': 'square_1_1',
+      '4:3': 'landscape_4_3',
+      '16:9': 'landscape_16_9',
+      '9:16': 'portrait_9_16'
+    };
+    const imageSize = options?.aspectRatio ? sizeMap[options.aspectRatio] || 'square_1_1' : 'square_1_1';
+
+    const response = await fetch('https://queue.fal.run/fal-ai/flux-pro', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Key ${this.apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        prompt,
+        image_size: imageSize,
+        num_images: 1
+      })
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new AIProviderError(
+        `FAL.AI image API error: ${response.status} - ${errorBody}`,
+        response.status === 429 || response.status >= 500,
+        response.status
+      );
+    }
+
+    const data = await response.json() as { request_id: string };
+    if (!data.request_id) {
+      throw new AIProviderError('No request ID returned from FAL.AI', false);
+    }
+
+    // Poll for the result
+    return this.pollForResult(data.request_id);
+  }
+
+  private async pollForResult(requestId: string, maxAttempts = 30): Promise<ImageGenerationResult> {
+    const pollUrl = `https://queue.fal.run/fal-ai/flux-pro/requests/${requestId}`;
+    
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const response = await fetch(pollUrl, {
+        headers: {
+          'Authorization': `Key ${this.apiKey}`
+        }
+      });
+      
+      const data = await response.json() as { status: string; images?: Array<{ url: string }> };
+      
+      if (data.status === 'completed' && data.images && data.images.length > 0) {
+        const imageUrl = data.images[0].url;
+        const imageResponse = await fetch(imageUrl);
+        const imageBuffer = await imageResponse.arrayBuffer();
+        const base64 = Buffer.from(imageBuffer).toString('base64');
+        
+        return { base64, mimeType: 'image/png' };
+      }
+      
+      if (data.status === 'failed') {
+        throw new AIProviderError('Image generation failed on FAL.AI', false);
+      }
+    }
+    
+    throw new AIProviderError('Timeout waiting for FAL.AI image', true);
+  }
+
+  async transcribeAudio(_audioData: string, _mimeType: string): Promise<TranscriptionResult> {
+    throw new AIProviderError(
+      'Audio transcription is not supported by FalProvider.',
+      'TRANSCRIPTION_UNSUPPORTED',
+      undefined,
+      false
+    );
+  }
+}
+
 // ==================== PROVIDER FACTORY ====================
 
 let cachedProvider: AIProvider | null = null;
@@ -634,11 +778,15 @@ export function getAIProvider(): AIProvider {
     ollamaApiKey: ENV_OLLAMA_API_KEY,
     groqApiKey: ENV_GROQ_API_KEY,
     groqModel: ENV_GROQ_MODEL,
+    falApiKey: ENV_FAL_API_KEY,
     backendUrl: ENV_BACKEND_URL !== 'http://localhost:4000' ? ENV_BACKEND_URL : ''
   };
 
-  // Groq provider (free, fast)
-  if (providerConfig.provider === 'groq' || (!providerConfig.geminiApiKey && !providerConfig.ollamaBaseUrl)) {
+  // FAL.AI provider - unified text and image generation
+  if (providerConfig.provider === 'fal' || (!providerConfig.groqApiKey && !providerConfig.geminiApiKey && !providerConfig.ollamaBaseUrl)) {
+    cachedProvider = new FalProvider(providerConfig.falApiKey);
+    console.info('Using FAL.AI provider for text and images');
+  } else if (providerConfig.provider === 'groq') {
     cachedProvider = new GroqProvider(providerConfig.groqApiKey, providerConfig.groqModel);
     console.info(`Using Groq provider with model ${providerConfig.groqModel}`);
   } else if (providerConfig.provider === 'ollama' && providerConfig.ollamaBaseUrl) {
@@ -667,9 +815,12 @@ export async function initializeAIProvider(): Promise<AIProvider> {
     return cachedProvider;
   }
 
-  // Groq provider (free, fast) - default if no other provider is configured
-  if (config.provider === 'groq' || (!config.geminiApiKey && !config.ollamaBaseUrl)) {
-    cachedProvider = new GroqProvider(config.groqApiKey || ENV_GROQ_API_KEY, config.groqModel || ENV_GROQ_MODEL);
+  // FAL.AI provider - unified text and image generation
+  if (config.provider === 'fal' || !config.groqApiKey) {
+    cachedProvider = new FalProvider(config.falApiKey || ENV_FAL_API_KEY);
+    console.info('Using FAL.AI provider from runtime config');
+  } else if (config.provider === 'groq') {
+    cachedProvider = new GroqProvider(config.groqApiKey, config.groqModel || ENV_GROQ_MODEL);
     console.info(`Using Groq provider from runtime config with model ${config.groqModel || ENV_GROQ_MODEL}`);
   } else if (config.provider === 'ollama' && config.ollamaBaseUrl) {
     const ollamaUrl = config.ollamaBaseUrl || 'https://ollama.com/api';

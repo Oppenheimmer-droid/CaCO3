@@ -26,6 +26,7 @@ export class ImageProviderError extends Error {
 export interface ImageProvider {
   name: string;
   generateImage(prompt: string, options?: ImageGenerationOptions): Promise<ImageGenerationResult>;
+  generateText?(prompt: string, options?: { responseMimeType?: string }): Promise<{ text: string }>;
 }
 
 // fal.ai Provider
@@ -86,6 +87,43 @@ export class FalImageProvider implements ImageProvider {
     const result = await this.pollForResult(data.request_id);
     
     return result;
+  }
+
+  async generateText(prompt: string, options?: { responseMimeType?: string }): Promise<{ text: string }> {
+    if (!this.apiKey) {
+      throw new ImageProviderError('fal.ai API key is required for text generation', false);
+    }
+
+    // Use fal.ai's fast-inference API for text generation
+    const response = await fetch('https://fast.lushor.cloud/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Key ${this.apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'deepseek-ai/DeepSeek-V3-0324',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 4096,
+        temperature: 0.7,
+        response_format: options?.responseMimeType === 'application/json' 
+          ? { type: 'json_object' }
+          : undefined
+      })
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new ImageProviderError(
+        `fal.ai text API error: ${response.status} - ${errorBody}`,
+        response.status === 429 || response.status >= 500,
+        response.status
+      );
+    }
+
+    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+    const text = data.choices?.[0]?.message?.content || '';
+    return { text };
   }
 
   private async pollForResult(requestId: string, maxAttempts = 30): Promise<ImageGenerationResult> {

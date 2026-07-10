@@ -1,5 +1,5 @@
 export interface RuntimeAIConfig {
-  provider?: 'gemini' | 'ollama' | 'groq';
+  provider?: 'gemini' | 'ollama' | 'groq' | 'fal';
   geminiApiKey?: string;
   ollamaBaseUrl?: string;
   ollamaModel?: string;
